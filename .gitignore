@@ -1,22 +1,25 @@
 # Python Virtual Environment
 venv/
+.venv/
 ENV/
 env/
-.venv/
 
-# Byte-compiled / optimized files
+# Python Bytecode & Cache
 __pycache__/
+*.pyc
+*.pyo
+*.pyd
 *.py[cod]
 *$py.class
+.pytest_cache/
 
-# Environment variables & secrets
+# Environment Variables & Secrets
 .env
 .env.local
-*.json
-!ProjectDetails/*.json
 
-# IDEs and Editors
-.vscode/
+# IDE & Editor files
+.vscode/*
+!.vscode/settings.json
 .idea/
 *.swp
 *.swo

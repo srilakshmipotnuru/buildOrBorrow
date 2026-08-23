@@ -1,8 +1,4 @@
 # BuildOrBorrow: Project Details & Specification
-
-**Recommended Title:** BuildOrBorrow: An AI-Assisted Early Warning and Decision Support Framework for Software Dependency Maintenance Risk  
-**Alternative Technical Title:** Predictive Software Dependency Health Assessment Using Repository Activity Forecasting and Generative AI  
-
 ---
 
 ## 1. Final Project Idea
