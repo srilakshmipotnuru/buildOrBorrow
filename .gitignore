@@ -1,0 +1,23 @@
+# Python Virtual Environment
+venv/
+.venv/
+env/
+
+# Python Bytecode & Cache
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.pytest_cache/
+
+# Environment Variables & Secrets
+.env
+.env.local
+
+# IDE & Editor files
+.vscode/*
+!.vscode/settings.json
+
+# OS Garbage
+.DS_Store
+Thumbs.db
