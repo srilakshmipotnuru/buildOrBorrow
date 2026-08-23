@@ -1,36 +1,42 @@
-# Python
-__pycache__/
-*.py[cod]
-*.pyo
-
-# Virtual environments
-.venv/
+# Python & Backend Virtual Environment
 venv/
+.venv/
+ENV/
 env/
 
-# Environment variables and secrets
+# Python Bytecode & Cache
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+*.py[cod]
+*$py.class
+.pytest_cache/
+
+# Frontend & Node.js
+node_modules/
+frontend/node_modules/
+dist/
+frontend/dist/
+dist-ssr/
+
+# Environment Variables & Secrets
 .env
 .env.*
-
-# Keep the example environment file
 !.env.example
 
-# IDE
-.vscode/
+# IDE & Editor Files
+.vscode/*
+!.vscode/settings.json
 .idea/
+*.swp
+*.swo
 
-# OS
+# OS Garbage
 .DS_Store
 Thumbs.db
 
-# Testing
-.pytest_cache/
-.coverage
-htmlcov/
-
-# Jupyter
-.ipynb_checkpoints/
-
-# Local data
-data/*
-!data/.gitkeep
+# Build & Distribution Artifacts
+dist/
+build/
+*.egg-info/
