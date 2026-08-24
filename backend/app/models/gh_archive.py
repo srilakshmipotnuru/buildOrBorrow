@@ -7,6 +7,7 @@ class WeeklyActivity(BaseModel):
     pr_events: int = Field(default=0, ge=0)
     issue_events: int = Field(default=0, ge=0)
     star_events: int = Field(default=0, ge=0)
+    active_contributors: int = Field(default=0, ge=0)
     total_events: int = Field(default=0, ge=0)
 
 
@@ -15,6 +16,7 @@ class GitHubActivitySummary(BaseModel):
     total_prs: int = Field(default=0, ge=0)
     total_issues: int = Field(default=0, ge=0)
     total_stars: int = Field(default=0, ge=0)
+    average_weekly_contributors: float = Field(default=0.0, ge=0.0)
     active_weeks_count: int = Field(default=0, ge=0)
 
 

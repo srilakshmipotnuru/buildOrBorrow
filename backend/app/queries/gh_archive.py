@@ -26,6 +26,7 @@ def query_github_weekly_activity(
       COUNTIF(type = 'PullRequestEvent') AS pr_events,
       COUNTIF(type = 'IssuesEvent') AS issue_events,
       COUNTIF(type = 'WatchEvent') AS star_events,
+      COUNT(DISTINCT actor.login) AS active_contributors,
       COUNT(1) AS total_events
     FROM
       `githubarchive.day.20*`
@@ -53,6 +54,7 @@ def query_github_weekly_activity(
             "pr_events": row.pr_events,
             "issue_events": row.issue_events,
             "star_events": row.star_events,
+            "active_contributors": row.active_contributors,
             "total_events": row.total_events,
         }
         for row in rows

@@ -62,6 +62,11 @@ def get_repo_activity(
     total_stars = sum(
         item["star_events"] for item in raw_weekly_data
     )
+    avg_contributors = (
+        sum(item["active_contributors"] for item in raw_weekly_data) 
+        / len(raw_weekly_data)
+        if raw_weekly_data else 0.0
+    )
 
     summary = GitHubActivitySummary(
         total_pushes=total_pushes,
@@ -69,6 +74,7 @@ def get_repo_activity(
         total_issues=total_issues,
         total_stars=total_stars,
         active_weeks_count=len(raw_weekly_data),
+        average_weekly_contributors=round(avg_contributors, 2)
     )
 
     return GitHubArchiveResponse(
