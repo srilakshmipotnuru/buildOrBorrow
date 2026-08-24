@@ -1,3 +1,5 @@
+# app/models/gh_archive.py
+from typing import List, Optional
 from pydantic import BaseModel, Field
 
 
@@ -26,6 +28,17 @@ class GitHubArchiveResponse(BaseModel):
     summary: GitHubActivitySummary = Field(
         default_factory=GitHubActivitySummary
     )
-    weekly_timeline: list[WeeklyActivity] = Field(
+    weekly_timeline: List[WeeklyActivity] = Field(
         default_factory=list
     )
+
+
+class PackageActivityBridgeResponse(BaseModel):
+    package_name: str
+    system: str
+    github_url: Optional[str] = None
+    repo_owner: str
+    repo_name: str
+    lookback_weeks: int
+    summary: GitHubActivitySummary
+    weekly_timeline: List[WeeklyActivity]
