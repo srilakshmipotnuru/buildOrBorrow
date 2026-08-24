@@ -6,7 +6,7 @@ from app.core.config import settings
 logger = logging.getLogger(__name__)
 
 # Raised default cap to 5000 MB (5 GB) to comfortably support GH Archive weekly scans
-DEFAULT_MAX_ALLOWED_MB = 50.0
+DEFAULT_MAX_ALLOWED_MB = 5000.0
 
 
 def get_bigquery_client() -> bigquery.Client:

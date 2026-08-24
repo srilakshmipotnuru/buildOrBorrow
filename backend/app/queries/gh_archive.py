@@ -7,7 +7,7 @@ def query_github_weekly_activity(
     client: bigquery.Client, 
     repo_owner: str, 
     repo_name: str, 
-    lookback_weeks: int = 4
+    lookback_weeks: int = 1
 ) -> list[dict]:
     full_repo_name = f"{repo_owner}/{repo_name}"
     
