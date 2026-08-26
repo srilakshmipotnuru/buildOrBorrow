@@ -16,7 +16,7 @@ router = APIRouter(
 def get_package_maintenance_forecast(
     package_name: str = Query(..., description="Package name (e.g., numpy, requests)"),
     system: str = Query("pypi", description="Ecosystem (pypi, npm, cargo)"),
-    lookback_weeks: int = Query(4, ge=1, le=104, description="Historical weeks used to fit model"),
+    lookback_weeks: int = Query(104, ge=1, le=104, description="Historical weeks used to fit model"),
     client: bigquery.Client = Depends(get_bigquery_client),
 ):
     # 1. Resolve package to GitHub repo

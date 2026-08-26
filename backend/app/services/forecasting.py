@@ -34,13 +34,19 @@ def project_weekly_series(
 
     # Sort chronological
     timeline = sorted(historical_timeline, key=lambda x: x["week_start"])
-    total_events_series = [float(item.get("total_events", 0)) for item in timeline]
+    
+    # Use weighted_activity score if available, or compute on the fly
+    weighted_events_series = [
+        float(item.get("weighted_activity")) if item.get("weighted_activity") is not None else
+        (float(item.get("push_events", 0)) * 3.0 + float(item.get("pr_events", 0)) * 2.0 + float(item.get("issue_events", 0)) * 1.0)
+        for item in timeline
+    ]
     commits_series = [float(item.get("push_events", 0)) for item in timeline]
     prs_series = [float(item.get("pr_events", 0)) for item in timeline]
     
     # Calculate baseline and trajectory
-    slope = calculate_trend_slope(total_events_series)
-    recent_window = total_events_series[-4:] if len(total_events_series) >= 4 else total_events_series
+    slope = calculate_trend_slope(weighted_events_series)
+    recent_window = weighted_events_series[-4:] if len(weighted_events_series) >= 4 else weighted_events_series
     recent_avg = sum(recent_window) / len(recent_window) if recent_window else 0.0
 
     # Parse last week start date
