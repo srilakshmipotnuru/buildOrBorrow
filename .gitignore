@@ -1,4 +1,4 @@
-# Python Virtual Environment
+# Python & Backend Virtual Environment
 venv/
 .venv/
 ENV/
@@ -13,22 +13,31 @@ __pycache__/
 *$py.class
 .pytest_cache/
 
+# Frontend & Node.js
+node_modules/
+frontend/node_modules/
+dist/
+frontend/dist/
+dist-ssr/
+
 # Environment Variables & Secrets
 .env
-.env.local
+.env.*
+!.env.example
 
-# IDE & Editor files
+# IDE & Editor Files
 .vscode/*
 !.vscode/settings.json
 .idea/
 *.swp
 *.swo
 
-# OS generated files
+# OS Garbage
 .DS_Store
 Thumbs.db
 
-# Build and distribution
+# Build & Distribution Artifacts
 dist/
 build/
 *.egg-info/
+
