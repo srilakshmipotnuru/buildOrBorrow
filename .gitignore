@@ -1,4 +1,4 @@
-# Python Virtual Environment
+# Python & Backend Virtual Environment
 venv/
 .venv/
 ENV/
@@ -32,7 +32,6 @@ dist-ssr/
 *.swp
 *.swo
 
-<<<<<<< HEAD
 # OS Garbage
 .DS_Store
 Thumbs.db
@@ -41,13 +40,4 @@ Thumbs.db
 dist/
 build/
 *.egg-info/
-=======
-# OS generated files
-.DS_Store
-Thumbs.db
 
-# Build and distribution
-dist/
-build/
-*.egg-info/
->>>>>>> origin/connecting-to-big-query
