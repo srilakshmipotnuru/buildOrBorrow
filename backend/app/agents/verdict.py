@@ -1,6 +1,4 @@
-import logging
-from typing import List, Dict, Any, Literal, Optional
-from pydantic import BaseModel, Field
+from fastapi import HTTPException
 from app.core.config import settings
 
 logger = logging.getLogger(__name__)
@@ -55,83 +53,6 @@ def calculate_formulaic_confidence(
     return final_score, level, factors
 
 
-def get_deterministic_fallback_verdict(
-    user_requirement: Optional[str],
-    package_resolution: Dict[str, Any],
-    security_context: Dict[str, Any],
-    forecast_analysis: Dict[str, Any],
-    diagnosis_status: str,
-    system: str = "PYPI"
-) -> VerdictResponse:
-    """Fallback rule-based Verdict Agent if Gemini API key is unconfigured or call fails."""
-    req_str = (user_requirement or "").strip().lower()
-    pkg_name = package_resolution.get("name", "package")
-    crit_vulns = security_context.get("critical_vulnerabilities", 0)
-    high_vulns = security_context.get("high_vulnerabilities", 0)
-    health_score = forecast_analysis.get("health_score", 50.0)
-    system_upper = (system or "PYPI").upper()
-
-    # Rule 1: Check for trivial requirement (BUILD)
-    trivial_keywords = ["left pad", "pad string", "truncate string", "shallow clone", "is even", "clamp number"]
-    if any(k in req_str for k in trivial_keywords) or (len(req_str) > 0 and len(req_str) < 25 and "simple" in req_str):
-        decision = "BUILD"
-        reasoning = [
-            f"The requirement '{req_str}' is trivial utility logic.",
-            "Introducing an external package dependency creates unnecessary supply-chain bloat.",
-            "Writing 10-15 lines of custom zero-dependency code is safer and cleaner."
-        ]
-        rec_alt = None
-        rec_sys = None
-        effort = "10-15 lines of zero-dependency utility code (~5 mins)"
-
-    # Rule 2: Check for abandoned/vulnerable package (MIGRATE)
-    elif diagnosis_status in ["ABANDONED_STRUGGLING", "VULNERABLE"] or crit_vulns > 0:
-        decision = "MIGRATE"
-        reasoning = [
-            f"Package '{pkg_name}' has maintenance status '{diagnosis_status}' and low health score ({health_score}/100).",
-            f"Found {crit_vulns} critical and {high_vulns} high security vulnerabilities.",
-            "Continuing to use this unmaintained package introduces security & instability risks."
-        ]
-        if system_upper == "NPM":
-            rec_alt = "axios" if pkg_name != "axios" else "got"
-            rec_sys = "NPM"
-        else:
-            rec_alt = "httpx" if pkg_name != "httpx" else "requests"
-            rec_sys = "PYPI"
-        effort = None
-
-    # Rule 3: Default healthy package (BORROW)
-    else:
-        decision = "BORROW"
-        reasoning = [
-            f"Package '{pkg_name}' has maintenance status '{diagnosis_status}' and health score ({health_score}/100).",
-            f"Found 0 critical vulnerabilities and acceptable dependency burden.",
-            "Borrowing this dependency is safe and recommended for your feature requirement."
-        ]
-        rec_alt = None
-        rec_sys = None
-        effort = None
-
-    conf_score, conf_level, conf_factors = calculate_formulaic_confidence(
-        has_history=bool(forecast_analysis),
-        has_issues=True,
-        has_security=bool(security_context),
-        llm_delta=0.0
-    )
-
-    return VerdictResponse(
-        decision=decision,
-        confidence_score=conf_score,
-        confidence_level=conf_level,
-        confidence_factors=conf_factors,
-        reasoning=reasoning,
-        recommended_alternative=rec_alt,
-        recommended_alternative_system=rec_sys,
-        alternative_verification=None,
-        estimated_build_effort=effort
-    )
-
-
 def generate_verdict(
     user_requirement: Optional[str],
     package_resolution: Dict[str, Any],
@@ -145,15 +66,17 @@ def generate_verdict(
     Synthesizes user requirement, package resolution, security, forecast, and diagnosis
     to output a final decision: BORROW, MIGRATE, or BUILD.
     Integrates the Calculative Confidence Engine (Formulaic Base + LLM Delta + Hard Caps).
+    Raises HTTP 503 if Gemini AI service is unconfigured or fails.
     """
     api_key = settings.GEMINI_API_KEY
     diag_status = diagnosis_output.get("status", "MAINTAINED_ACTIVE")
     pkg_name = package_resolution.get("name", "target-package")
 
     if not api_key:
-        logger.info("GEMINI_API_KEY unconfigured. Using deterministic fallback Verdict Agent.")
-        return get_deterministic_fallback_verdict(
-            user_requirement, package_resolution, security_context, forecast_analysis, diag_status, system
+        logger.error("GEMINI_API_KEY unconfigured. Unable to execute Verdict Agent.")
+        raise HTTPException(
+            status_code=503,
+            detail="Gemini AI service unavailable: GEMINI_API_KEY is not configured on the server."
         )
 
     try:
@@ -213,12 +136,17 @@ def generate_verdict(
             logger.info(f"Verdict Agent generated decision '{verdict.decision}' for {pkg_name}")
             return verdict
         else:
-            return get_deterministic_fallback_verdict(
-                user_requirement, package_resolution, security_context, forecast_analysis, diag_status, system
+            raise HTTPException(
+                status_code=503,
+                detail="Verdict Agent failed to parse structured output from Gemini AI."
             )
 
+    except HTTPException:
+        raise
     except Exception as e:
-        logger.error(f"Error in Verdict Agent call: {e}. Utilizing fallback.")
-        return get_deterministic_fallback_verdict(
-            user_requirement, package_resolution, security_context, forecast_analysis, diag_status, system
+        logger.error(f"Error in Verdict Agent call: {e}")
+        raise HTTPException(
+            status_code=503,
+            detail=f"Verdict Agent call failed: {str(e)}"
         )
+

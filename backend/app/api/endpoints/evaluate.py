@@ -110,16 +110,11 @@ def evaluate_single_package_pipeline(
         logger.warning(f"deps.dev query skipped or failed for '{package_name}': {e}")
 
     if not resolution_dict:
-        # Construct fallback resolution model
-        resolution_dict = {
-            "name": package_name,
-            "system": system_upper,
-            "version": "1.0.0",
-            "project_name": f"{package_name}/{package_name}",
-            "licenses": ["MIT"],
-            "github_url": f"https://github.com/{package_name}/{package_name}",
-            "published_at": None
-        }
+        logger.warning(f"Package '{package_name}' could not be resolved in deps.dev dataset for system '{system_upper}'.")
+        raise HTTPException(
+            status_code=404,
+            detail=f"Package '{package_name}' was not found in the {system_upper} ecosystem."
+        )
 
     resolution_model = PackageResolutionResponse(**resolution_dict)
     security_model = SecurityContextResponse(**security_dict)

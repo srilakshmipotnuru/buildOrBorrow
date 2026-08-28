@@ -1,6 +1,4 @@
-import logging
-from typing import List, Optional
-from pydantic import BaseModel, Field
+from fastapi import HTTPException
 from app.core.config import settings
 
 logger = logging.getLogger(__name__)
@@ -17,70 +15,25 @@ class CandidateFinderResponse(BaseModel):
     candidates: List[CandidatePackage] = Field(description="Exactly 3 top candidate packages")
 
 
-def get_deterministic_fallback_candidates(task_description: str, system: str = "PYPI") -> CandidateFinderResponse:
-    """Returns rule-based candidate packages if Gemini API key is unconfigured or call fails."""
-    task_lower = task_description.lower()
-    system_upper = (system or "PYPI").upper()
-
-    if "rss" in task_lower or "feed" in task_lower:
-        if system_upper == "NPM":
-            candidates = [
-                CandidatePackage(name="rss-parser", system="NPM", reason="Standard Node.js RSS feed parser"),
-                CandidatePackage(name="feedparser-promised", system="NPM", reason="Promise-wrapped RSS/Atom parser"),
-                CandidatePackage(name="fast-xml-parser", system="NPM", reason="High performance XML/RSS parser")
-            ]
-        else:
-            candidates = [
-                CandidatePackage(name="feedparser", system="PYPI", reason="Standard Python RSS and Atom parsing library"),
-                CandidatePackage(name="atoma", system="PYPI", reason="Fast Python RSS, Atom and JSON feed parser"),
-                CandidatePackage(name="htmldate", system="PYPI", reason="Extracts publication dates from web feeds")
-            ]
-    elif "http" in task_lower or "request" in task_lower or "api" in task_lower:
-        if system_upper == "NPM":
-            candidates = [
-                CandidatePackage(name="axios", system="NPM", reason="Promise based HTTP client for node.js"),
-                CandidatePackage(name="node-fetch", system="NPM", reason="Lightweight window.fetch compatible HTTP client"),
-                CandidatePackage(name="got", system="NPM", reason="Human-friendly HTTP request library")
-            ]
-        else:
-            candidates = [
-                CandidatePackage(name="requests", system="PYPI", reason="Standard Python HTTP library for human beings"),
-                CandidatePackage(name="httpx", system="PYPI", reason="Next-generation HTTP client with async support"),
-                CandidatePackage(name="urllib3", system="PYPI", reason="User-friendly HTTP client with connection pooling")
-            ]
-    else:
-        # Default fallback candidates
-        if system_upper == "NPM":
-            candidates = [
-                CandidatePackage(name="lodash", system="NPM", reason="Utility library for JavaScript"),
-                CandidatePackage(name="express", system="NPM", reason="Fast, unopinionated web framework"),
-                CandidatePackage(name="moment", system="NPM", reason="Date parsing and formatting utility")
-            ]
-        else:
-            candidates = [
-                CandidatePackage(name="requests", system="PYPI", reason="Popular HTTP and networking library"),
-                CandidatePackage(name="pydantic", system="PYPI", reason="Data validation and settings management"),
-                CandidatePackage(name="urllib3", system="PYPI", reason="Low-level HTTP library")
-            ]
-
-    return CandidateFinderResponse(confidence_score=0.85, candidates=candidates)
-
-
 def find_candidate_packages(task_description: str, system: str = "PYPI") -> CandidateFinderResponse:
     """
     Candidate Finder Agent:
     Uses Gemini AI (google-genai) to identify exactly 3 standard, active, modern candidate package names
     in the specified ecosystem (PYPI, NPM, CARGO, GO) for the given task.
+    Raises HTTP 503 if Gemini AI service is unconfigured or fails.
     """
     if not task_description or not task_description.strip():
-        return get_deterministic_fallback_candidates(task_description="general utility", system=system)
+        raise HTTPException(status_code=400, detail="Task description cannot be empty.")
 
     target_system = (system or "PYPI").upper()
     api_key = settings.GEMINI_API_KEY
 
     if not api_key:
-        logger.info("GEMINI_API_KEY not configured. Using deterministic fallback candidate finder.")
-        return get_deterministic_fallback_candidates(task_description=task_description, system=target_system)
+        logger.error("GEMINI_API_KEY unconfigured. Unable to execute Candidate Finder Agent.")
+        raise HTTPException(
+            status_code=503,
+            detail="Gemini AI service unavailable: GEMINI_API_KEY is not configured on the server."
+        )
 
     try:
         from google import genai
@@ -114,9 +67,17 @@ def find_candidate_packages(task_description: str, system: str = "PYPI") -> Cand
             logger.info(f"Candidate Finder Agent successfully selected 3 packages for task in {target_system}")
             return response.parsed
         else:
-            logger.warning("Gemini did not return structured CandidateFinderResponse. Falling back to rule-based finder.")
-            return get_deterministic_fallback_candidates(task_description=task_description, system=target_system)
+            raise HTTPException(
+                status_code=503,
+                detail="Candidate Finder Agent failed to parse structured response from Gemini AI."
+            )
 
+    except HTTPException:
+        raise
     except Exception as e:
-        logger.error(f"Error in Candidate Finder Agent call: {e}. Utilizing fallback.")
-        return get_deterministic_fallback_candidates(task_description=task_description, system=target_system)
+        logger.error(f"Error in Candidate Finder Agent call: {e}")
+        raise HTTPException(
+            status_code=503,
+            detail=f"Candidate Finder Agent call failed: {str(e)}"
+        )
+

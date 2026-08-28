@@ -1,6 +1,4 @@
-import logging
-from typing import List, Dict, Any, Literal, Optional
-from pydantic import BaseModel, Field
+from fastapi import HTTPException
 from app.core.config import settings
 
 logger = logging.getLogger(__name__)
@@ -17,58 +15,6 @@ class DiagnosisResponse(BaseModel):
     explanation: str = Field(description="Detailed qualitative analysis cross-referencing activity momentum with bug text")
 
 
-def get_deterministic_fallback_diagnosis(
-    package_name: str, 
-    historical_summary: Dict[str, Any], 
-    forecast_analysis: Dict[str, Any],
-    recent_issues: List[Dict[str, Any]]
-) -> DiagnosisResponse:
-    """Fallback rule-based diagnosis when Gemini API is unconfigured or unavailable."""
-    health_score = forecast_analysis.get("health_score", 50.0)
-    trend = forecast_analysis.get("trend_direction", "STABLE")
-    total_pushes = historical_summary.get("total_pushes", 0)
-    issue_count = len(recent_issues)
-
-    # Check for crash/vulnerability keywords in issue titles
-    has_critical_bugs = any(
-        any(k in item.get("title", "").lower() for k in ["crash", "segfault", "security", "cve", "vulnerability", "broken"])
-        for item in recent_issues
-    )
-
-    if has_critical_bugs and health_score < 40:
-        status = "VULNERABLE"
-        is_abandoned = True
-        bug_sev = "Critical: Open crash or vulnerability reports detected in issue titles with low maintenance activity."
-        exp = f"Package '{package_name}' shows active unresolved critical bugs and a low health score ({health_score}/100)."
-    elif health_score >= 70:
-        status = "MAINTAINED_ACTIVE"
-        is_abandoned = False
-        bug_sev = f"Normal: {issue_count} open issues under active maintenance."
-        exp = f"Package '{package_name}' is actively maintained with a strong health score ({health_score}/100) and steady momentum ({trend})."
-    elif health_score >= 35 and not has_critical_bugs:
-        status = "MATURE_STABLE"
-        is_abandoned = False
-        bug_sev = f"Low: {issue_count} open feature requests or minor issues; no critical crash reports."
-        exp = f"Package '{package_name}' shows lower commit activity but zero critical bug reports. It is functionally mature and stable."
-    else:
-        status = "ABANDONED_STRUGGLING"
-        is_abandoned = True
-        bug_sev = f"High: {issue_count} open unaddressed issues."
-        exp = f"Package '{package_name}' shows declining momentum ({trend}) and low health score ({health_score}/100) with unaddressed issue reports."
-
-    confidence = 0.85 if recent_issues else 0.65
-    reason = "Rule-based fallback calculation based on health score and issue keywords."
-
-    return DiagnosisResponse(
-        status=status,
-        is_abandoned=is_abandoned,
-        confidence_score=confidence,
-        confidence_reason=reason,
-        bug_severity_assessment=bug_sev,
-        explanation=exp
-    )
-
-
 def diagnose_package(
     package_name: str,
     historical_summary: Dict[str, Any],
@@ -79,11 +25,15 @@ def diagnose_package(
     Diagnosis Agent:
     Cross-references quantitative activity momentum with qualitative open GitHub issue text.
     Distinguishes feature-complete packages (MATURE_STABLE) from struggling packages (ABANDONED_STRUGGLING).
+    Raises HTTP 503 if Gemini AI service is unconfigured or fails.
     """
     api_key = settings.GEMINI_API_KEY
     if not api_key:
-        logger.info("GEMINI_API_KEY unconfigured. Using fallback diagnosis agent.")
-        return get_deterministic_fallback_diagnosis(package_name, historical_summary, forecast_analysis, recent_issues)
+        logger.error("GEMINI_API_KEY unconfigured. Unable to execute Diagnosis Agent.")
+        raise HTTPException(
+            status_code=503,
+            detail="Gemini AI service unavailable: GEMINI_API_KEY is not configured on the server."
+        )
 
     formatted_issue_list = "\n".join([
         f"- {item.get('title', '')} (opened {item.get('age', 'recently')})"
@@ -133,8 +83,17 @@ def diagnose_package(
             logger.info(f"Diagnosis Agent successfully diagnosed status '{response.parsed.status}' for {package_name}")
             return response.parsed
         else:
-            return get_deterministic_fallback_diagnosis(package_name, historical_summary, forecast_analysis, recent_issues)
+            raise HTTPException(
+                status_code=503,
+                detail="Diagnosis Agent failed to parse structured output from Gemini AI."
+            )
 
+    except HTTPException:
+        raise
     except Exception as e:
-        logger.error(f"Error in Diagnosis Agent call: {e}. Utilizing fallback.")
-        return get_deterministic_fallback_diagnosis(package_name, historical_summary, forecast_analysis, recent_issues)
+        logger.error(f"Error in Diagnosis Agent call: {e}")
+        raise HTTPException(
+            status_code=503,
+            detail=f"Diagnosis Agent call failed: {str(e)}"
+        )
+
