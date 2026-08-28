@@ -1,4 +1,7 @@
+import logging
+from typing import List, Optional
 from fastapi import HTTPException
+from pydantic import BaseModel, Field
 from app.core.config import settings
 
 logger = logging.getLogger(__name__)

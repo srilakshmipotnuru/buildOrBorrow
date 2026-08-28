@@ -1,19 +1,7 @@
 import logging
 from typing import List, Optional
-from pydantic import BaseModel, Field
-from app.core.config import settings
-
-logger = logging.getLogger(__name__)
-
-
-class BuilderResponse(BaseModel):
-    language: str = Field(description="Target programming language (e.g. python, typescript, javascript)")
-    code_snippet: str = Field(description="Clean, well-commented, zero-dependency custom code replacement")
-    explanation: str = Field(description="Brief explanation of how the custom implementation works")
-    dependencies_used: List[str] = Field(default_factory=list, description="Must be empty list [] for zero-dependency implementation")
-
-
 from fastapi import HTTPException
+from pydantic import BaseModel, Field
 from app.core.config import settings
 
 logger = logging.getLogger(__name__)
