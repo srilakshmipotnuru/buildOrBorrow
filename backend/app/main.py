@@ -1,7 +1,7 @@
 import logging
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-from app.api.endpoints import deps_dev
+from app.api.endpoints import deps_dev, gh_archive, forecast
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -23,7 +23,8 @@ app.add_middleware(
 
 # Include API Routers
 app.include_router(deps_dev.router, prefix="/api")
-
+app.include_router(gh_archive.router, prefix="/api")
+app.include_router(forecast.router, prefix="/api")
 
 @app.get("/")
 def root():

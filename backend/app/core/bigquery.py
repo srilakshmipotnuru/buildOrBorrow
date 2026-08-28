@@ -5,17 +5,16 @@ from app.core.config import settings
 
 logger = logging.getLogger(__name__)
 
+# Default safety cap set to 500 MB for general metadata queries
+DEFAULT_MAX_ALLOWED_MB = 500.0
 
-def get_bigquery_client(project_id: Optional[str] = None) -> bigquery.Client:
+
+def get_bigquery_client() -> bigquery.Client:
     """
-    Factory function returning a Google Cloud BigQuery client instance.
-    
-    Resolves project ID in priority order:
-    1. Explicitly passed project_id parameter
-    2. Resolved project ID from settings (GCP_PROJECT / GOOGLE_CLOUD_PROJECT)
-    3. Default active gcloud SDK configuration
+    FastAPI dependency that returns an authenticated BigQuery client.
+    Parameterless signature prevents FastAPI from injecting project_id into Swagger.
     """
-    target_project = project_id or settings.get_gcp_project()
+    target_project = settings.get_gcp_project() if hasattr(settings, "get_gcp_project") else None
     
     if target_project:
         logger.info(f"Initializing BigQuery client for GCP Project: {target_project}")
@@ -29,7 +28,7 @@ def execute_safe_query(
     client: bigquery.Client,
     sql: str,
     job_config: Optional[bigquery.QueryJobConfig] = None,
-    max_allowed_mb: float = 50.0
+    max_allowed_mb: float = DEFAULT_MAX_ALLOWED_MB
 ) -> List[Any]:
     """
     Executes a BigQuery SQL query with BigQuery's server-side maximum_bytes_billed hard limit.
