@@ -257,8 +257,20 @@ def evaluate_pipeline(request: EvaluationRequest):
             verified_exists=ver.get("verified_exists", True) if ver else True
         ))
 
-    # Stage 3: Primary Deep Evaluation for the top candidate
-    primary_cand = candidate_list[0]
+    # Stage 3: Primary Deep Evaluation for the top candidate (selects first candidate that passed deps.dev verification)
+    verified_candidates = [
+        cand for cand, screen in zip(candidate_list, screenings)
+        if screen.verified_exists
+    ]
+
+    if not verified_candidates:
+        logger.warning(f"None of the suggested candidates for task '{task_input}' were verified in deps.dev dataset.")
+        primary_cand = candidate_list[0]
+    else:
+        primary_cand = verified_candidates[0]
+
+    logger.info(f"Selected primary candidate '{primary_cand.name}' ({primary_cand.system}) for deep evaluation.")
+
     primary_eval = evaluate_single_package_pipeline(
         package_name=primary_cand.name,
         system=primary_cand.system,
