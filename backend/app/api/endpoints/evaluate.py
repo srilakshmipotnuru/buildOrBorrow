@@ -86,10 +86,20 @@ def evaluate_single_package_pipeline(
     Executes core evaluation pipeline for a single package:
     deps.dev resolution -> Security scan -> GH Archive forecast -> GitHub issues -> AI Agents.
     """
+    import time
+    start_time = time.time()
     package_name = package_name.strip().lower()
     system_upper = (system or "pypi").strip().upper()
 
+    logger.info("=" * 80)
+    logger.info(f"🚀 [BUILDORBORROW] Starting Evaluation Pipeline")
+    logger.info(f"   Target Package : '{package_name}' ({system_upper})")
+    if user_requirement:
+        logger.info(f"   Requirement    : '{user_requirement}'")
+    logger.info("=" * 80)
+
     # Step 1: deps.dev Resolution & Security
+    logger.info("📦 [STEP 1/6] Querying deps.dev Package Resolution & Security Advisories...")
     resolution_dict = None
     security_dict = {
         "critical_vulnerabilities": 0, "high_vulnerabilities": 0, "medium_vulnerabilities": 0,
@@ -112,7 +122,7 @@ def evaluate_single_package_pipeline(
         logger.warning(f"deps.dev query skipped or failed for '{package_name}': {e}")
 
     if not resolution_dict:
-        logger.warning(f"Package '{package_name}' could not be resolved in deps.dev dataset for system '{system_upper}'.")
+        logger.warning(f"❌ Package '{package_name}' could not be resolved in deps.dev dataset for ecosystem '{system_upper}'.")
         raise HTTPException(
             status_code=404,
             detail=f"Package '{package_name}' was not found in the {system_upper} ecosystem."
@@ -121,7 +131,11 @@ def evaluate_single_package_pipeline(
     resolution_model = PackageResolutionResponse(**resolution_dict)
     security_model = SecurityContextResponse(**security_dict)
 
+    logger.info(f"   ✔ Package Resolved : {resolution_dict.get('name')} v{resolution_dict.get('version')} (Project: {resolution_dict.get('project_name')})")
+    logger.info(f"   ✔ Security Check   : {security_dict.get('critical_vulnerabilities')} Critical, {security_dict.get('high_vulnerabilities')} High CVEs | {security_dict.get('transitive_dependencies')} Transitive Deps")
+
     # Step 2: Extract Repo & Query GH Archive + 90-Day Forecast
+    logger.info("📊 [STEP 2/6] Querying GH Archive Weekly Activity & 90-Day Forecast...")
     github_url = resolution_dict.get("github_url")
     owner, repo = None, None
     raw_weekly_data = []
@@ -139,8 +153,10 @@ def evaluate_single_package_pipeline(
         if parsed:
             owner, repo = parsed
             # Fetch recent issues via GitHub Search API
+            logger.info("🐛 [STEP 3/6] Retrieving Recent Open GitHub Issues...")
             try:
                 recent_issues = fetch_recent_github_issues(owner=owner, repo=repo, max_issues=settings.GITHUB_ISSUES_MAX_COUNT)
+                logger.info(f"   ✔ GitHub Issues    : Fetched {len(recent_issues)} recent open issues for {owner}/{repo}")
             except Exception as e:
                 logger.warning(f"GitHub issue fetch failed for {owner}/{repo}: {e}")
 
@@ -151,6 +167,8 @@ def evaluate_single_package_pipeline(
                 )
                 if raw_weekly_data:
                     forecast_results = project_weekly_series(raw_weekly_data, forecast_weeks=settings.DEFAULT_FORECAST_WEEKS)
+                    logger.info(f"   ✔ GH Archive Scan  : Analyzed {len(raw_weekly_data)} weeks of activity for {owner}/{repo}")
+                    logger.info(f"   ✔ Forecast Result  : Trend {forecast_results.get('trend_direction')} | Health Score: {forecast_results.get('health_score')}/100 | Signal: {forecast_results.get('maintenance_verdict_signal')}")
             except Exception as e:
                 logger.warning(f"GH Archive query skipped or failed for {owner}/{repo}: {e}")
 
@@ -161,15 +179,18 @@ def evaluate_single_package_pipeline(
     }
     forecast_model = ForecastAnalysis(**forecast_results)
 
-    # Step 3: AI Diagnosis Agent
+    # Step 4: AI Diagnosis Agent
+    logger.info("🔬 [STEP 4/6] Executing AI Diagnosis Agent...")
     diagnosis_model = diagnose_package(
         package_name=package_name,
         historical_summary=historical_summary,
         forecast_analysis=forecast_results,
         recent_issues=recent_issues
     )
+    logger.info(f"   ✔ Diagnosis Result : Status '{diagnosis_model.status}' (Abandoned: {diagnosis_model.is_abandoned})")
 
-    # Step 4: AI Verdict Agent
+    # Step 5: AI Verdict Agent
+    logger.info("⚖️ [STEP 5/6] Executing AI Verdict Agent & Confidence Engine...")
     verdict_model = generate_verdict(
         user_requirement=user_requirement,
         package_resolution=resolution_dict,
@@ -178,9 +199,11 @@ def evaluate_single_package_pipeline(
         diagnosis_output=diagnosis_model.model_dump(),
         system=system_upper
     )
+    logger.info(f"   ✔ Architectural Verdict : {verdict_model.decision} (Confidence: {verdict_model.confidence_score} - {verdict_model.confidence_level})")
 
-    # Step 5: Lightweight Alternative Package Verification (if MIGRATE)
+    # Step 6: Lightweight Alternative Package Verification (if MIGRATE)
     if verdict_model.decision == "MIGRATE" and verdict_model.recommended_alternative:
+        logger.info(f"🔍 [STEP 6/6] Verifying Recommended Alternative Package '{verdict_model.recommended_alternative}'...")
         alt_system = verdict_model.recommended_alternative_system or system_upper
         alt_res = verify_alternative_package(
             alternative_name=verdict_model.recommended_alternative,
@@ -188,15 +211,23 @@ def evaluate_single_package_pipeline(
         )
         if alt_res:
             verdict_model.alternative_verification = AlternativeVerification(**alt_res)
+            logger.info(f"   ✔ Alternative Verified  : '{alt_res.get('name')}' (Exists: {alt_res.get('verified_exists')})")
 
-    # Step 6: AI Builder Agent (Triggered ONLY if BUILD)
+    # Step 7: AI Builder Agent (Triggered ONLY if BUILD)
     builder_model = None
     if verdict_model.decision == "BUILD":
+        logger.info(f"🛠️ [STEP 6/6] Executing AI Builder Agent (Generating Zero-Dep Code Replacement)...")
         builder_model = generate_custom_build(
             user_requirement=user_requirement or f"Custom implementation for {package_name}",
             package_name=package_name,
             system=system_upper
         )
+        logger.info(f"   ✔ Code Generation Completed ({builder_model.language})")
+
+    elapsed_sec = round(time.time() - start_time, 2)
+    logger.info("=" * 80)
+    logger.info(f"✨ [BUILDORBORROW] Pipeline Completed Successfully in {elapsed_sec}s")
+    logger.info("=" * 80)
 
     return PackageEvaluationDetail(
         package_name=package_name,

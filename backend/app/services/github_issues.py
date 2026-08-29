@@ -77,7 +77,11 @@ def fetch_recent_github_issues(
                     "age": age_str,
                     "formatted_text": f"{item.get('title', '')} (opened {age_str})"
                 })
-            logger.info(f"Fetched {len(results)} open issues via GitHub Search API for {full_repo}")
+            logger.info(f"   [GitHub Issues API] Successfully fetched {len(results)} open issues for '{full_repo}' via Search API:")
+            for issue in results[:5]:  # Log top 5 issue titles for details
+                logger.info(f"      • {issue['title']} (opened {issue['age']})")
+            if len(results) > 5:
+                logger.info(f"      • ... and {len(results) - 5} more issues.")
             return results
         else:
             logger.warning(f"GitHub Search API returned HTTP {response.status_code} for {full_repo}, falling back to REST endpoint.")
@@ -104,7 +108,11 @@ def fetch_recent_github_issues(
                     })
                     if len(results) >= max_issues:
                         break
-            logger.info(f"Fetched {len(results)} open issues via REST Repo endpoint for {full_repo}")
+            logger.info(f"   [GitHub Issues REST] Successfully fetched {len(results)} open issues for '{full_repo}' via REST fallback:")
+            for issue in results[:5]:
+                logger.info(f"      • {issue['title']} (opened {issue['age']})")
+            if len(results) > 5:
+                logger.info(f"      • ... and {len(results) - 5} more issues.")
             return results
         else:
             logger.error(f"GitHub REST Repo issues endpoint returned HTTP {response.status_code} for {full_repo}")

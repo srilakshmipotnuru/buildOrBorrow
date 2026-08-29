@@ -82,8 +82,11 @@ def diagnose_package(
         )
 
         if response.parsed and isinstance(response.parsed, DiagnosisResponse):
-            logger.info(f"Diagnosis Agent successfully diagnosed status '{response.parsed.status}' for {package_name}")
-            return response.parsed
+            diag = response.parsed
+            logger.info(f"   [Diagnosis Agent] Status: '{diag.status}' (Abandoned: {diag.is_abandoned}, Confidence: {diag.confidence_score})")
+            logger.info(f"   [Diagnosis Agent] Bug Assessment: {diag.bug_severity_assessment}")
+            logger.info(f"   [Diagnosis Agent] Explanation: {diag.explanation}")
+            return diag
         else:
             raise HTTPException(
                 status_code=503,

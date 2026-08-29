@@ -14,10 +14,10 @@ def get_bigquery_client() -> bigquery.Client:
     target_project = settings.get_gcp_project() if hasattr(settings, "get_gcp_project") else None
     
     if target_project:
-        logger.info(f"Initializing BigQuery client for GCP Project: {target_project}")
+        logger.debug(f"Initializing BigQuery client for GCP Project: {target_project}")
         return bigquery.Client(project=target_project)
     
-    logger.info("Initializing BigQuery client with default active gcloud config.")
+    logger.debug("Initializing BigQuery client with default active gcloud config.")
     return bigquery.Client()
 
 

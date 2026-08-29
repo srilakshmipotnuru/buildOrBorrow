@@ -146,7 +146,15 @@ def generate_verdict(
             verdict.confidence_score = conf_score
             verdict.confidence_level = conf_level
             verdict.confidence_factors = conf_factors
-            logger.info(f"Verdict Agent generated decision '{verdict.decision}' for {pkg_name}")
+            logger.info(f"   [Verdict Agent] Decision: '{verdict.decision}' (Score: {verdict.confidence_score} - {verdict.confidence_level})")
+            if verdict.reasoning:
+                logger.info(f"   [Verdict Agent] Key Reasoning:")
+                for r_bullet in verdict.reasoning:
+                    logger.info(f"      • {r_bullet}")
+            if verdict.decision == "MIGRATE" and verdict.recommended_alternative:
+                logger.info(f"   [Verdict Agent] Recommended Alternative: '{verdict.recommended_alternative}' ({verdict.recommended_alternative_system or system})")
+            elif verdict.decision == "BUILD" and verdict.estimated_build_effort:
+                logger.info(f"   [Verdict Agent] Estimated Build Effort: {verdict.estimated_build_effort}")
             return verdict
         else:
             raise HTTPException(

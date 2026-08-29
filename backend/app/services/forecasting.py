@@ -1,7 +1,10 @@
 from datetime import datetime, timedelta
 import math
+import logging
 from typing import List, Dict, Any
 from app.core.config import settings
+
+logger = logging.getLogger(__name__)
 
 def calculate_trend_slope(y_values: List[float]) -> float:
     """Calculates linear slope (Ordinary Least Squares) for a series."""
@@ -25,6 +28,7 @@ def project_weekly_series(
     Projects 90-day (~13 weeks) activity from historical weekly GH Archive data.
     """
     if not historical_timeline:
+        logger.warning("   [Forecasting] Empty historical timeline provided. Returning default abandoned signal.")
         return {
             "projected_timeline": [],
             "trend_direction": "UNKNOWN",
@@ -98,6 +102,12 @@ def project_weekly_series(
         verdict_signal = "SLOW_MAINTENANCE"
     else:
         verdict_signal = "AT_RISK_STAGNANT"
+
+    logger.info(
+        f"   [Forecasting Engine] Timeline={len(timeline)} wks | Slope={slope:.3f} | RecentAvg={recent_avg:.1f} | "
+        f"Projected 90d Events={accumulated_projected} | HealthScore={health_score:.1f}/100 "
+        f"(Act={activity_weight:.1f}, Mom={momentum_weight:.1f}, Con={consistency_weight:.1f})"
+    )
 
     return {
         "projected_timeline": projected_timeline,
