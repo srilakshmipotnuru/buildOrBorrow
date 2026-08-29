@@ -1,14 +1,16 @@
-# app/queries/gh_archive.py
+from typing import Optional
 from datetime import datetime, timedelta, timezone
 from google.cloud import bigquery
-from app.core.bigquery import execute_safe_query
+from app.core.bigquery import execute_safe_query, get_bigquery_client
+from app.core.config import settings
 
 def query_github_weekly_activity(
-    client: bigquery.Client, 
-    repo_owner: str, 
-    repo_name: str, 
-    lookback_weeks: int = 104
+    client: Optional[bigquery.Client] = None, 
+    repo_owner: str = "", 
+    repo_name: str = "", 
+    lookback_weeks: int = settings.DEFAULT_LOOKBACK_WEEKS
 ) -> list[dict]:
+    bq_client = client or get_bigquery_client()
     full_repo_name = f"{repo_owner}/{repo_name}"
     
     end_date = datetime.now(timezone.utc).date()
@@ -51,7 +53,7 @@ def query_github_weekly_activity(
         ]
     )
     
-    rows = execute_safe_query(client, query, job_config=job_config, max_allowed_mb=5000.0)
+    rows = execute_safe_query(bq_client, query, job_config=job_config, max_allowed_mb=settings.BQ_GH_ARCHIVE_MAX_ALLOWED_MB)
     
     return [
         {
@@ -69,16 +71,17 @@ def query_github_weekly_activity(
 
 
 def query_arima_plus_forecast(
-    client: bigquery.Client,
-    repo_owner: str,
-    repo_name: str,
-    lookback_weeks: int = 104,
-    forecast_weeks: int = 13
+    client: Optional[bigquery.Client] = None,
+    repo_owner: str = "",
+    repo_name: str = "",
+    lookback_weeks: int = settings.DEFAULT_LOOKBACK_WEEKS,
+    forecast_weeks: int = settings.DEFAULT_FORECAST_WEEKS
 ) -> list[dict]:
     """
     Executes a BigQuery ML ARIMA_PLUS forecast on GH Archive weekly weighted activity.
     Uses ML.FORECAST with 90% confidence bounds.
     """
+    bq_client = client or get_bigquery_client()
     full_repo_name = f"{repo_owner}/{repo_name}"
     end_date = datetime.now(timezone.utc).date()
     start_date = end_date - timedelta(weeks=lookback_weeks)
@@ -125,7 +128,7 @@ def query_arima_plus_forecast(
         ]
     )
     
-    rows = execute_safe_query(client, query, job_config=job_config, max_allowed_mb=5000.0)
+    rows = execute_safe_query(bq_client, query, job_config=job_config, max_allowed_mb=settings.BQ_GH_ARCHIVE_MAX_ALLOWED_MB)
     
     return [
         {

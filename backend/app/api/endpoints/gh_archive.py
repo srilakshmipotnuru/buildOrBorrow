@@ -1,6 +1,7 @@
 from fastapi import APIRouter, Depends, HTTPException, Query
 from google.cloud import bigquery
 from app.core.bigquery import get_bigquery_client
+from app.core.config import settings
 from app.core.utils import extract_github_owner_repo
 from app.queries.deps_dev import query_package_resolution
 from app.queries.gh_archive import query_github_weekly_activity
@@ -22,9 +23,9 @@ def get_repo_activity(
     owner: str = Query(..., description="Repository owner, e.g. psf"),
     repo: str = Query(..., description="Repository name, e.g. requests"),
     lookback_weeks: int = Query(
-        4,
+        settings.DEFAULT_LOOKBACK_WEEKS,
         ge=1,
-        le=104,
+        le=settings.MAX_LOOKBACK_WEEKS,
         description="Weeks of historical data",
     ),
     client: bigquery.Client = Depends(get_bigquery_client),
@@ -86,7 +87,7 @@ def get_repo_activity(
 def get_package_activity_by_name(
     package_name: str = Query(..., description="Name of the package (e.g., requests, fastapi)"),
     system: str = Query("pypi", description="Package ecosystem (e.g., pypi, npm, cargo)"),
-    lookback_weeks: int = Query(12, ge=1, le=104, description="Weeks of historical data to scan"),
+    lookback_weeks: int = Query(settings.DEFAULT_LOOKBACK_WEEKS, ge=1, le=settings.MAX_LOOKBACK_WEEKS, description="Weeks of historical data to scan"),
     client: bigquery.Client = Depends(get_bigquery_client)
 ):
     # Step 1: Query deps.dev to resolve metadata & GitHub repository URL

@@ -1,6 +1,7 @@
 # app/models/gh_archive.py
 from typing import List, Optional
 from pydantic import BaseModel, Field
+from app.core.config import settings
 
 
 class WeeklyActivity(BaseModel):
@@ -24,7 +25,7 @@ class GitHubActivitySummary(BaseModel):
 
 class GitHubArchiveResponse(BaseModel):
     repo_name: str = ""
-    lookback_weeks: int = Field(default=104, ge=0)
+    lookback_weeks: int = Field(default_factory=lambda: settings.DEFAULT_LOOKBACK_WEEKS, ge=0)
     summary: GitHubActivitySummary = Field(
         default_factory=GitHubActivitySummary
     )
