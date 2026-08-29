@@ -35,15 +35,17 @@ def call_gemini_with_retry(
 ) -> Any:
     """
     Executes a structured Gemini API call with exponential backoff retries and automatic model fallback.
-    If primary model (e.g. gemini-2.5-flash) throws 503 UNAVAILABLE or 429 RATE_LIMIT,
-    it retries with exponential delay and falls back to FALLBACK_GEMINI_MODEL_NAME (gemini-1.5-flash).
+    If primary model (e.g. gemini-2.5-flash) throws 503 UNAVAILABLE or 429 RESOURCE_EXHAUSTED,
+    it automatically falls back to active alternative models (gemini-3.5-flash-lite, gemini-3.5-flash).
     """
     from google.genai import types
 
     primary_model = settings.GEMINI_MODEL_NAME
-    fallback_model = getattr(settings, "FALLBACK_GEMINI_MODEL_NAME", "gemini-1.5-flash")
+    fallback_1 = getattr(settings, "FALLBACK_GEMINI_MODEL_NAME", "gemini-3.5-flash-lite")
+    fallback_2 = "gemini-3.5-flash"
 
-    models_to_try = [primary_model] * (max_retries - 1) + [fallback_model]
+    # Cascade order: Primary model -> Fallback Lite -> Fallback 3.5 Flash
+    models_to_try = [primary_model, fallback_1, fallback_2][:max_retries]
 
     last_exception = None
 
@@ -66,13 +68,14 @@ def call_gemini_with_retry(
             is_temporary_error = "503" in err_msg or "UNAVAILABLE" in err_msg or "429" in err_msg or "RESOURCE_EXHAUSTED" in err_msg
             
             if is_temporary_error and attempt < len(models_to_try) - 1:
-                sleep_seconds = 1.5 * (attempt + 1)
+                next_model = models_to_try[attempt + 1]
+                sleep_seconds = 1.0
                 logger.warning(
-                    f"Gemini call to '{model_name}' failed with temporary error ({err_msg}). "
-                    f"Retrying in {sleep_seconds:.1f}s (Attempt {attempt + 1}/{len(models_to_try)})..."
+                    f"Gemini call to '{model_name}' failed with rate limit/capacity error ({err_msg[:120]}...). "
+                    f"Switching to fallback model '{next_model}' (Attempt {attempt + 2}/{len(models_to_try)})..."
                 )
                 time.sleep(sleep_seconds)
             else:
                 logger.error(f"Gemini API call to '{model_name}' failed: {e}")
 
-    raise last_exception
+    raise last_exception

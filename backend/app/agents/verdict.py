@@ -85,12 +85,58 @@ def generate_verdict(
     diag_status = diagnosis_output.get("status", "MAINTAINED_ACTIVE")
     pkg_name = package_resolution.get("name", "target-package")
 
-    if not api_key:
-        logger.error("GEMINI_API_KEY unconfigured. Unable to execute Verdict Agent.")
-        raise HTTPException(
-            status_code=503,
-            detail="Gemini AI service unavailable: GEMINI_API_KEY is not configured on the server."
+    def _rule_based_verdict_fallback() -> VerdictResponse:
+        logger.warning(f"   [Verdict Fallback] Executing formulaic verdict fallback for '{pkg_name}'...")
+        is_ab = diagnosis_output.get("is_abandoned", False)
+        status_val = diagnosis_output.get("status", "MAINTAINED_ACTIVE")
+        health_score = forecast_analysis.get("health_score", 50.0)
+        cve_count = security_context.get("total_vulnerabilities", 0)
+
+        if is_ab or status_val in ["ABANDONED_STRUGGLING", "VULNERABLE"] or cve_count > 0:
+            dec = "MIGRATE"
+            rec_alt = f"{pkg_name}-alternative" if pkg_name else None
+            reasoning_bullets = [
+                f"Package '{pkg_name}' is classified as {status_val} with health score {health_score}/100.",
+                f"Active security vulnerabilities or project stagnation suggest migrating to a maintained alternative.",
+                "In-house migration or adopting a supported library reduces supply-chain risk."
+            ]
+        elif health_score >= 60:
+            dec = "BORROW"
+            rec_alt = None
+            reasoning_bullets = [
+                f"Package '{pkg_name}' demonstrates healthy maintenance momentum (score: {health_score}/100).",
+                "Security vulnerability check passed with zero critical advisories.",
+                "Borrowing this package provides optimal productivity over building in-house."
+            ]
+        else:
+            dec = "BUILD"
+            rec_alt = None
+            reasoning_bullets = [
+                f"Package '{pkg_name}' shows weak activity momentum (score: {health_score}/100).",
+                "Implementing a focused zero-dependency utility eliminates external overhead.",
+                "Zero third-party dependencies ensure long-term stability and full codebase control."
+            ]
+
+        conf_score, conf_level, conf_factors = calculate_formulaic_confidence(
+            has_history=bool(forecast_analysis),
+            has_issues=True,
+            has_security=bool(security_context),
+            llm_delta=0.0
         )
+
+        return VerdictResponse(
+            decision=dec,
+            confidence_score=conf_score,
+            confidence_level=conf_level,
+            confidence_factors=conf_factors,
+            reasoning=reasoning_bullets,
+            recommended_alternative=rec_alt,
+            recommended_alternative_system=system,
+            estimated_build_effort="~25 lines of code, 15 mins" if dec == "BUILD" else None
+        )
+
+    if not api_key:
+        return _rule_based_verdict_fallback()
 
     try:
         from google import genai
@@ -124,19 +170,17 @@ def generate_verdict(
             f"- If BUILD, provide estimated_build_effort (e.g. '15 lines of code, ~10 mins')."
         )
 
-        response = client.models.generate_content(
-            model="gemini-2.5-flash",
-            contents=prompt,
-            config=types.GenerateContentConfig(
-                response_mime_type="application/json",
-                response_schema=VerdictResponse,
-                temperature=0.1
-            )
+        from app.core.utils import call_gemini_with_retry
+
+        response = call_gemini_with_retry(
+            client=client,
+            prompt=prompt,
+            response_schema=VerdictResponse,
+            temperature=settings.GEMINI_DEFAULT_TEMPERATURE
         )
 
         if response.parsed and isinstance(response.parsed, VerdictResponse):
             verdict = response.parsed
-            # Calibrate confidence with Formulaic Base Engine
             conf_score, conf_level, conf_factors = calculate_formulaic_confidence(
                 has_history=bool(forecast_analysis),
                 has_issues=True,
@@ -157,17 +201,8 @@ def generate_verdict(
                 logger.info(f"   [Verdict Agent] Estimated Build Effort: {verdict.estimated_build_effort}")
             return verdict
         else:
-            raise HTTPException(
-                status_code=503,
-                detail="Verdict Agent failed to parse structured output from Gemini AI."
-            )
+            return _rule_based_verdict_fallback()
 
-    except HTTPException:
-        raise
     except Exception as e:
-        logger.error(f"Error in Verdict Agent call: {e}")
-        raise HTTPException(
-            status_code=503,
-            detail=f"Verdict Agent call failed: {str(e)}"
-        )
-
+        logger.error(f"Error in Verdict Agent call ({e}). Triggering formulaic verdict fallback...")
+        return _rule_based_verdict_fallback()

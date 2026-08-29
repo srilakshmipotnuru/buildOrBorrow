@@ -30,13 +30,34 @@ def diagnose_package(
     Distinguishes feature-complete packages (MATURE_STABLE) from struggling packages (ABANDONED_STRUGGLING).
     Raises HTTP 503 if Gemini AI service is unconfigured or fails.
     """
+    def _rule_based_fallback() -> DiagnosisResponse:
+        logger.warning(f"   [Diagnosis Fallback] Executing rule-based diagnosis fallback for '{package_name}'...")
+        health_score = forecast_analysis.get("health_score", 50.0)
+        verdict_signal = forecast_analysis.get("maintenance_verdict_signal", "UNKNOWN")
+        total_pushes = historical_summary.get("total_pushes", 0)
+
+        if health_score >= 70 or verdict_signal == "HEALTHY_ACTIVE":
+            status_val = "MAINTAINED_ACTIVE"
+            is_ab = False
+        elif total_pushes == 0 or health_score < 30 or verdict_signal == "AT_RISK_STAGNANT":
+            status_val = "ABANDONED_STRUGGLING"
+            is_ab = True
+        else:
+            status_val = "MATURE_STABLE"
+            is_ab = False
+
+        return DiagnosisResponse(
+            status=status_val,
+            is_abandoned=is_ab,
+            confidence_score=0.75,
+            confidence_reason="Statistical fallback diagnosis evaluated using historical activity metrics.",
+            bug_severity_assessment=f"Analyzed {len(recent_issues)} recent open GitHub issues.",
+            explanation=f"Fallback diagnosis classified '{package_name}' as '{status_val}' based on health score {health_score}/100 and historical commit momentum."
+        )
+
     api_key = settings.GEMINI_API_KEY
     if not api_key:
-        logger.error("GEMINI_API_KEY unconfigured. Unable to execute Diagnosis Agent.")
-        raise HTTPException(
-            status_code=503,
-            detail="Gemini AI service unavailable: GEMINI_API_KEY is not configured on the server."
-        )
+        return _rule_based_fallback()
 
     formatted_issue_list = "\n".join([
         f"- {item.get('title', '')} (opened {item.get('age', 'recently')})"
@@ -45,17 +66,19 @@ def diagnose_package(
 
     try:
         from google import genai
-        from google.genai import types
-
         client = genai.Client(api_key=api_key)
+
+        data_status_str = (
+            f"- Historical Pushes (104 wks): {historical_summary.get('total_pushes')}\n"
+            f"- Historical PRs (104 wks): {historical_summary.get('total_prs')}\n"
+            f"- Historical Stars (104 wks): {historical_summary.get('total_stars')}\n"
+        ) if historical_summary.get("data_retrieved", True) else "- Historical Activity: Data Unavailable / Skipped (DO NOT infer 0 commits or project abandonment)\n"
 
         prompt = (
             f"You are an expert AI Software Health & Maintenance Diagnostic Agent.\n"
             f"Package Name: '{package_name}'\n\n"
             f"QUANTITATIVE METRICS:\n"
-            f"- Historical Pushes (104 wks): {historical_summary.get('total_pushes', 0)}\n"
-            f"- Historical PRs (104 wks): {historical_summary.get('total_prs', 0)}\n"
-            f"- Historical Stars (104 wks): {historical_summary.get('total_stars', 0)}\n"
+            f"{data_status_str}"
             f"- 90-Day Trend Direction: {forecast_analysis.get('trend_direction', 'STABLE')}\n"
             f"- Maintenance Health Score: {forecast_analysis.get('health_score', 50.0)} / 100.0\n"
             f"- Maintenance Verdict Signal: {forecast_analysis.get('maintenance_verdict_signal', 'UNKNOWN')}\n\n"
@@ -88,17 +111,9 @@ def diagnose_package(
             logger.info(f"   [Diagnosis Agent] Explanation: {diag.explanation}")
             return diag
         else:
-            raise HTTPException(
-                status_code=503,
-                detail="Diagnosis Agent failed to parse structured output from Gemini AI."
-            )
+            return _rule_based_fallback()
 
-    except HTTPException:
-        raise
     except Exception as e:
-        logger.error(f"Error in Diagnosis Agent call: {e}")
-        raise HTTPException(
-            status_code=503,
-            detail=f"Diagnosis Agent call failed: {str(e)}"
-        )
+        logger.error(f"Error in Diagnosis Agent call ({e}). Triggering statistical fallback...")
+        return _rule_based_fallback()
 

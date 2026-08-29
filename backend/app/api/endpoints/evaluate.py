@@ -173,9 +173,10 @@ def evaluate_single_package_pipeline(
                 logger.warning(f"GH Archive query skipped or failed for {owner}/{repo}: {e}")
 
     historical_summary = {
-        "total_pushes": sum(item.get("push_events", 0) for item in raw_weekly_data),
-        "total_prs": sum(item.get("pr_events", 0) for item in raw_weekly_data),
-        "total_stars": sum(item.get("star_events", 0) for item in raw_weekly_data),
+        "data_retrieved": bool(raw_weekly_data),
+        "total_pushes": sum(item.get("push_events", 0) for item in raw_weekly_data) if raw_weekly_data else "UNAVAILABLE",
+        "total_prs": sum(item.get("pr_events", 0) for item in raw_weekly_data) if raw_weekly_data else "UNAVAILABLE",
+        "total_stars": sum(item.get("star_events", 0) for item in raw_weekly_data) if raw_weekly_data else "UNAVAILABLE",
     }
     forecast_model = ForecastAnalysis(**forecast_results)
 
