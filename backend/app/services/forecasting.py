@@ -1,6 +1,7 @@
 from datetime import datetime, timedelta
 import math
 from typing import List, Dict, Any
+from app.core.config import settings
 
 def calculate_trend_slope(y_values: List[float]) -> float:
     """Calculates linear slope (Ordinary Least Squares) for a series."""
@@ -18,7 +19,7 @@ def calculate_trend_slope(y_values: List[float]) -> float:
 
 def project_weekly_series(
     historical_timeline: List[Dict[str, Any]], 
-    forecast_weeks: int = 13
+    forecast_weeks: int = settings.DEFAULT_FORECAST_WEEKS
 ) -> Dict[str, Any]:
     """
     Projects 90-day (~13 weeks) activity from historical weekly GH Archive data.

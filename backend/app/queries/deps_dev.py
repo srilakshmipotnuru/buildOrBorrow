@@ -2,6 +2,7 @@ import logging
 from typing import Optional, Dict, Any
 from google.cloud import bigquery
 from app.core.bigquery import get_bigquery_client, execute_safe_query
+from app.core.config import settings
 
 logger = logging.getLogger(__name__)
 
@@ -13,13 +14,13 @@ def query_package_resolution(
 ) -> Optional[Dict[str, Any]]:
     """
     Query deps.dev BigQuery dataset across ALL ecosystems (PYPI, NPM, CARGO, GO, MAVEN).
-    Uses 2-CTE 30-day partition pruning with 2.5 GB safety limit guardrail.
+    Uses 2-CTE partition pruning with centralized settings for byte limit guardrails.
     """
     package_name = package_name.strip().lower()
     target_system = (system or "PYPI").strip().upper()
     bq_client = client or get_bigquery_client()
     
-    sql = """
+    sql = f"""
     WITH target_package AS (
         SELECT 
             Name, 
@@ -31,7 +32,7 @@ def query_package_resolution(
         WHERE System = @system 
           AND Name = @package_name
           AND VersionInfo.IsRelease = true
-          AND SnapshotAt >= TIMESTAMP_SUB(CURRENT_TIMESTAMP(), INTERVAL 30 DAY)
+          AND SnapshotAt >= TIMESTAMP_SUB(CURRENT_TIMESTAMP(), INTERVAL {settings.DEPS_DEV_PARTITION_DAYS} DAY)
         ORDER BY VersionInfo.Ordinal DESC
         LIMIT 1
     ),
@@ -44,7 +45,7 @@ def query_package_resolution(
         FROM `bigquery-public-data.deps_dev_v1.PackageVersionToProject`
         WHERE System = @system 
           AND Name = @package_name
-          AND SnapshotAt >= TIMESTAMP_SUB(CURRENT_TIMESTAMP(), INTERVAL 30 DAY)
+          AND SnapshotAt >= TIMESTAMP_SUB(CURRENT_TIMESTAMP(), INTERVAL {settings.DEPS_DEV_PARTITION_DAYS} DAY)
         LIMIT 1
     )
     SELECT 
@@ -67,7 +68,7 @@ def query_package_resolution(
     )
     
     try:
-        results = execute_safe_query(bq_client, sql, job_config=job_config, max_allowed_mb=2500.0)
+        results = execute_safe_query(bq_client, sql, job_config=job_config, max_allowed_mb=settings.BQ_DEPS_DEV_MAX_ALLOWED_MB)
         
         if results:
             row = results[0]
@@ -94,7 +95,7 @@ def query_security_and_dependencies(
 ) -> Dict[str, Any]:
     """
     Query deps.dev for security vulnerability severity breakdown (CRITICAL, HIGH, MEDIUM, LOW, UNKNOWN)
-    and transitive dependency count bloat with Dry Run safety guardrail.
+    and transitive dependency count bloat with centralized safety guardrails.
     """
     package_name = package_name.strip().lower()
     target_system = (system or "PYPI").strip().upper()
@@ -131,7 +132,7 @@ def query_security_and_dependencies(
     )
 
     try:
-        rows = execute_safe_query(bq_client, advisories_sql, job_config=job_config, max_allowed_mb=2500.0)
+        rows = execute_safe_query(bq_client, advisories_sql, job_config=job_config, max_allowed_mb=settings.BQ_DEPS_DEV_MAX_ALLOWED_MB)
         for r in rows:
             sev = (r.severity or "").upper()
             cnt = r.count or 0
@@ -157,14 +158,14 @@ def query_security_and_dependencies(
 
     # 2. Query Transitive Dependency Count Bloat
     if version:
-        deps_sql = """
+        deps_sql = f"""
         SELECT 
             COUNT(DISTINCT Dependency.Name) AS total_dependencies
         FROM `bigquery-public-data.deps_dev_v1.Dependencies`
         WHERE System = @system 
           AND Name = @package_name
           AND Version = @version
-          AND SnapshotAt >= TIMESTAMP_SUB(CURRENT_TIMESTAMP(), INTERVAL 30 DAY)
+          AND SnapshotAt >= TIMESTAMP_SUB(CURRENT_TIMESTAMP(), INTERVAL {settings.DEPS_DEV_PARTITION_DAYS} DAY)
         """
         deps_job_config = bigquery.QueryJobConfig(
             query_parameters=[
@@ -174,7 +175,7 @@ def query_security_and_dependencies(
             ]
         )
         try:
-            rows = execute_safe_query(bq_client, deps_sql, job_config=deps_job_config, max_allowed_mb=2500.0)
+            rows = execute_safe_query(bq_client, deps_sql, job_config=deps_job_config, max_allowed_mb=settings.BQ_DEPS_DEV_MAX_ALLOWED_MB)
             if rows:
                 output["transitive_dependencies"] = rows[0].total_dependencies or 0
                 output["direct_dependencies"] = None
@@ -182,3 +183,4 @@ def query_security_and_dependencies(
             logger.error(f"Error querying dependencies for {package_name}: {e}")
 
     return output
+

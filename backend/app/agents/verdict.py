@@ -6,6 +6,16 @@ from app.core.config import settings
 
 logger = logging.getLogger(__name__)
 
+class AlternativeVerification(BaseModel):
+    name: str
+    system: str
+    version: Optional[str] = None
+    verified_exists: bool = True
+    github_url: Optional[str] = None
+    licenses: List[str] = Field(default_factory=list)
+    published_at: Optional[str] = None
+    note: Optional[str] = None
+
 
 class VerdictResponse(BaseModel):
     decision: Literal["BORROW", "MIGRATE", "BUILD"] = Field(description="Final decision: BORROW, MIGRATE, or BUILD")
@@ -15,7 +25,7 @@ class VerdictResponse(BaseModel):
     reasoning: List[str] = Field(description="Bullet points explaining why this decision was reached")
     recommended_alternative: Optional[str] = Field(None, description="Suggested active alternative package name if decision is MIGRATE")
     recommended_alternative_system: Optional[str] = Field(None, description="Suggested alternative ecosystem (e.g. PYPI, NPM)")
-    alternative_verification: Optional[Dict[str, Any]] = Field(None, description="Lightweight verification output for recommended alternative")
+    alternative_verification: Optional[AlternativeVerification] = Field(None, description="Lightweight verification output for recommended alternative")
     estimated_build_effort: Optional[str] = Field(None, description="Estimated effort/lines of code if decision is BUILD")
 
 

@@ -36,7 +36,7 @@ def calculate_relative_age(created_at_str: str) -> str:
 def fetch_recent_github_issues(
     owner: str, 
     repo: str, 
-    max_issues: int = 15
+    max_issues: int = settings.GITHUB_ISSUES_MAX_COUNT
 ) -> List[Dict[str, Any]]:
     """
     Fetches recent open GitHub issue titles and creation timestamps via GitHub Search API.
@@ -63,7 +63,7 @@ def fetch_recent_github_issues(
     )
 
     try:
-        response = requests.get(search_url, headers=headers, timeout=5.0)
+        response = requests.get(search_url, headers=headers, timeout=settings.GITHUB_API_TIMEOUT_SECONDS)
         if response.status_code == 200:
             data = response.json()
             items = data.get("items", [])
@@ -84,10 +84,10 @@ def fetch_recent_github_issues(
     except Exception as e:
         logger.warning(f"GitHub Search API request failed for {full_repo}: {e}. Trying REST fallback.")
 
-    # Attempt 2: REST Repo Issues Endpoint Fallback (Fetches per_page=30 and filters out pull_request key)
-    rest_url = f"https://api.github.com/repos/{full_repo}/issues?state=open&per_page=30"
+    # Attempt 2: REST Repo Issues Endpoint Fallback
+    rest_url = f"https://api.github.com/repos/{full_repo}/issues?state=open&per_page={settings.GITHUB_ISSUES_REST_PER_PAGE}"
     try:
-        response = requests.get(rest_url, headers=headers, timeout=5.0)
+        response = requests.get(rest_url, headers=headers, timeout=settings.GITHUB_API_TIMEOUT_SECONDS)
         if response.status_code == 200:
             items = response.json()
             results = []
@@ -112,3 +112,4 @@ def fetch_recent_github_issues(
     except Exception as e:
         logger.error(f"GitHub REST Repo issues endpoint failed for {full_repo}: {e}")
         return []
+

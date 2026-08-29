@@ -1,5 +1,11 @@
 import re
-from typing import Optional, Tuple
+import time
+import logging
+from typing import Optional, Tuple, Any
+from app.core.config import settings
+
+logger = logging.getLogger(__name__)
+
 
 def extract_github_owner_repo(github_url: Optional[str]) -> Optional[Tuple[str, str]]:
     if not github_url:
@@ -18,3 +24,55 @@ def extract_github_owner_repo(github_url: Optional[str]) -> Optional[Tuple[str, 
         repo = repo[:-4]
         
     return owner, repo
+
+
+def call_gemini_with_retry(
+    client: Any,
+    prompt: str,
+    response_schema: Any,
+    temperature: float = 0.1,
+    max_retries: int = 3
+) -> Any:
+    """
+    Executes a structured Gemini API call with exponential backoff retries and automatic model fallback.
+    If primary model (e.g. gemini-2.5-flash) throws 503 UNAVAILABLE or 429 RATE_LIMIT,
+    it retries with exponential delay and falls back to FALLBACK_GEMINI_MODEL_NAME (gemini-1.5-flash).
+    """
+    from google.genai import types
+
+    primary_model = settings.GEMINI_MODEL_NAME
+    fallback_model = getattr(settings, "FALLBACK_GEMINI_MODEL_NAME", "gemini-1.5-flash")
+
+    models_to_try = [primary_model] * (max_retries - 1) + [fallback_model]
+
+    last_exception = None
+
+    for attempt, model_name in enumerate(models_to_try):
+        try:
+            logger.info(f"Calling Gemini model '{model_name}' (Attempt {attempt + 1}/{len(models_to_try)})...")
+            response = client.models.generate_content(
+                model=model_name,
+                contents=prompt,
+                config=types.GenerateContentConfig(
+                    response_mime_type="application/json",
+                    response_schema=response_schema,
+                    temperature=temperature
+                )
+            )
+            return response
+        except Exception as e:
+            last_exception = e
+            err_msg = str(e)
+            is_temporary_error = "503" in err_msg or "UNAVAILABLE" in err_msg or "429" in err_msg or "RESOURCE_EXHAUSTED" in err_msg
+            
+            if is_temporary_error and attempt < len(models_to_try) - 1:
+                sleep_seconds = 1.5 * (attempt + 1)
+                logger.warning(
+                    f"Gemini call to '{model_name}' failed with temporary error ({err_msg}). "
+                    f"Retrying in {sleep_seconds:.1f}s (Attempt {attempt + 1}/{len(models_to_try)})..."
+                )
+                time.sleep(sleep_seconds)
+            else:
+                logger.error(f"Gemini API call to '{model_name}' failed: {e}")
+
+    raise last_exception

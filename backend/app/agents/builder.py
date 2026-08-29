@@ -56,14 +56,13 @@ def generate_custom_build(
             f"4. Provide a brief explanation of how the code works."
         )
 
-        response = client.models.generate_content(
-            model="gemini-2.5-flash",
-            contents=prompt,
-            config=types.GenerateContentConfig(
-                response_mime_type="application/json",
-                response_schema=BuilderResponse,
-                temperature=0.2
-            )
+        from app.core.utils import call_gemini_with_retry
+
+        response = call_gemini_with_retry(
+            client=client,
+            prompt=prompt,
+            response_schema=BuilderResponse,
+            temperature=settings.GEMINI_BUILDER_TEMPERATURE
         )
 
         if response.parsed and isinstance(response.parsed, BuilderResponse):

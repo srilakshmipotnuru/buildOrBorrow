@@ -4,6 +4,8 @@ from fastapi import APIRouter, Depends, HTTPException, Query
 from pydantic import BaseModel, Field, model_validator
 
 from app.core.utils import extract_github_owner_repo
+from app.core.bigquery import get_bigquery_client
+from app.core.config import settings
 from app.models.deps_dev import PackageResolutionResponse, SecurityContextResponse
 from app.models.forecast import ForecastAnalysis
 from app.queries.deps_dev import query_package_resolution, query_security_and_dependencies
@@ -14,7 +16,7 @@ from app.services.alternative_verifier import verify_alternative_package
 
 from app.agents.candidate_finder import find_candidate_packages, CandidateFinderResponse
 from app.agents.diagnosis import diagnose_package, DiagnosisResponse
-from app.agents.verdict import generate_verdict, VerdictResponse
+from app.agents.verdict import generate_verdict, VerdictResponse, AlternativeVerification
 from app.agents.builder import generate_custom_build, BuilderResponse
 
 logger = logging.getLogger(__name__)
@@ -138,17 +140,17 @@ def evaluate_single_package_pipeline(
             owner, repo = parsed
             # Fetch recent issues via GitHub Search API
             try:
-                recent_issues = fetch_recent_github_issues(owner=owner, repo=repo, max_issues=15)
+                recent_issues = fetch_recent_github_issues(owner=owner, repo=repo, max_issues=settings.GITHUB_ISSUES_MAX_COUNT)
             except Exception as e:
                 logger.warning(f"GitHub issue fetch failed for {owner}/{repo}: {e}")
 
             # Query GH Archive weekly activity
             try:
                 raw_weekly_data = query_github_weekly_activity(
-                    client=None, repo_owner=owner, repo_name=repo, lookback_weeks=104
+                    client=get_bigquery_client(), repo_owner=owner, repo_name=repo, lookback_weeks=settings.DEFAULT_LOOKBACK_WEEKS
                 )
                 if raw_weekly_data:
-                    forecast_results = project_weekly_series(raw_weekly_data, forecast_weeks=13)
+                    forecast_results = project_weekly_series(raw_weekly_data, forecast_weeks=settings.DEFAULT_FORECAST_WEEKS)
             except Exception as e:
                 logger.warning(f"GH Archive query skipped or failed for {owner}/{repo}: {e}")
 
@@ -180,10 +182,12 @@ def evaluate_single_package_pipeline(
     # Step 5: Lightweight Alternative Package Verification (if MIGRATE)
     if verdict_model.decision == "MIGRATE" and verdict_model.recommended_alternative:
         alt_system = verdict_model.recommended_alternative_system or system_upper
-        verdict_model.alternative_verification = verify_alternative_package(
+        alt_res = verify_alternative_package(
             alternative_name=verdict_model.recommended_alternative,
             system=alt_system
         )
+        if alt_res:
+            verdict_model.alternative_verification = AlternativeVerification(**alt_res)
 
     # Step 6: AI Builder Agent (Triggered ONLY if BUILD)
     builder_model = None

@@ -72,14 +72,13 @@ def diagnose_package(
             f"4. Provide a clear bug_severity_assessment and detailed explanation."
         )
 
-        response = client.models.generate_content(
-            model="gemini-2.5-flash",
-            contents=prompt,
-            config=types.GenerateContentConfig(
-                response_mime_type="application/json",
-                response_schema=DiagnosisResponse,
-                temperature=0.1
-            )
+        from app.core.utils import call_gemini_with_retry
+
+        response = call_gemini_with_retry(
+            client=client,
+            prompt=prompt,
+            response_schema=DiagnosisResponse,
+            temperature=settings.GEMINI_DEFAULT_TEMPERATURE
         )
 
         if response.parsed and isinstance(response.parsed, DiagnosisResponse):

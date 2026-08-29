@@ -1,6 +1,7 @@
 from fastapi import APIRouter, Depends, HTTPException, Query
 from google.cloud import bigquery
 from app.core.bigquery import get_bigquery_client
+from app.core.config import settings
 from app.core.utils import extract_github_owner_repo
 from app.queries.deps_dev import query_package_resolution
 from app.queries.gh_archive import query_github_weekly_activity
@@ -16,7 +17,7 @@ router = APIRouter(
 def get_package_maintenance_forecast(
     package_name: str = Query(..., description="Package name (e.g., numpy, requests)"),
     system: str = Query("pypi", description="Ecosystem (pypi, npm, cargo)"),
-    lookback_weeks: int = Query(104, ge=1, le=104, description="Historical weeks used to fit model"),
+    lookback_weeks: int = Query(settings.DEFAULT_LOOKBACK_WEEKS, ge=1, le=settings.MAX_LOOKBACK_WEEKS, description="Historical weeks used to fit model"),
     client: bigquery.Client = Depends(get_bigquery_client),
 ):
     # 1. Resolve package to GitHub repo
@@ -59,7 +60,7 @@ def get_package_maintenance_forecast(
         )
 
     # 3. Generate 90-day forecast
-    forecast_results = project_weekly_series(raw_weekly_data, forecast_weeks=13)
+    forecast_results = project_weekly_series(raw_weekly_data, forecast_weeks=settings.DEFAULT_FORECAST_WEEKS)
 
     return PackageForecastResponse(
         package_name=package_name,

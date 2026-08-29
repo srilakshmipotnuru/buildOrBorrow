@@ -49,21 +49,20 @@ def find_candidate_packages(task_description: str, system: str = "PYPI") -> Cand
             f"Task Requirement: '{task_description}'\n"
             f"Target Ecosystem: '{target_system}'\n\n"
             f"Instructions:\n"
-            f"1. Identify EXACTLY 3 popular, modern, well-maintained candidate packages in the '{target_system}' ecosystem "
+            f"1. Identify EXACTLY {settings.CANDIDATE_FINDER_COUNT} popular, modern, well-maintained candidate packages in the '{target_system}' ecosystem "
             f"that solve this task.\n"
             f"2. For each package, return its exact package name as published in the '{target_system}' registry, "
             f"its system string ('{target_system}'), and a brief 1-sentence reason.\n"
             f"3. Assign a confidence_score between 0.0 and 1.0 for your candidate selection."
         )
 
-        response = client.models.generate_content(
-            model="gemini-2.5-flash",
-            contents=prompt,
-            config=types.GenerateContentConfig(
-                response_mime_type="application/json",
-                response_schema=CandidateFinderResponse,
-                temperature=0.1
-            )
+        from app.core.utils import call_gemini_with_retry
+
+        response = call_gemini_with_retry(
+            client=client,
+            prompt=prompt,
+            response_schema=CandidateFinderResponse,
+            temperature=settings.GEMINI_DEFAULT_TEMPERATURE
         )
 
         if response.parsed and isinstance(response.parsed, CandidateFinderResponse):
