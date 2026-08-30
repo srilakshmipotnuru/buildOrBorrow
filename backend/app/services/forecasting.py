@@ -93,7 +93,17 @@ def project_weekly_series(
     momentum_weight = 30.0 if trend_direction == "ACCELERATING" else (20.0 if trend_direction == "STABLE" else 5.0)
     consistency_weight = min(20.0, (avg_commits + avg_prs) * 2)
     
-    health_score = round(min(100.0, activity_weight + momentum_weight + consistency_weight), 2)
+    raw_health_score = activity_weight + momentum_weight + consistency_weight
+
+    # Bedrock Baseline Boost for Feature-Complete Mature Software:
+    # High cumulative activity or star history indicates a foundational library whose low churn reflects API stability rather than abandonment.
+    total_stars = sum(item.get("star_events", 0) for item in timeline)
+    total_all_events = sum(item.get("total_events", 0) for item in timeline)
+
+    if total_all_events >= 200 or total_stars >= 50:
+        health_score = round(min(100.0, max(75.0, raw_health_score + 40.0)), 2)
+    else:
+        health_score = round(min(100.0, raw_health_score), 2)
 
     # Initial signal classification
     if health_score >= 70:

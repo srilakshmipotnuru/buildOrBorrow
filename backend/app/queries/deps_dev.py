@@ -1,3 +1,4 @@
+import re
 import logging
 from typing import Optional, Dict, Any
 from google.cloud import bigquery
@@ -5,6 +6,28 @@ from app.core.bigquery import get_bigquery_client, execute_safe_query
 from app.core.config import settings
 
 logger = logging.getLogger(__name__)
+
+
+def is_version_vulnerable(version_str: Optional[str], range_str: Optional[str]) -> bool:
+    """
+    Checks if a resolved version string is affected by a deps.dev VulnerableVersionRange string.
+    Example: version="3.11.1", range="< 2.0.0" -> False (patched/clean)
+    Example: version="1.0.0", range="< 2.0.0" -> True (vulnerable)
+    """
+    if not version_str or not range_str:
+        return False
+    try:
+        clean_v = version_str.strip().lstrip("v")
+        v_parts = [int(p) for p in clean_v.split(".") if p.isdigit()]
+        
+        match = re.search(r"<\s*v?([0-9\.]+)", range_str)
+        if match:
+            target_v = [int(p) for p in match.group(1).split(".") if p.isdigit()]
+            if v_parts and target_v:
+                return v_parts < target_v
+    except Exception:
+        pass
+    return False
 
 
 def query_package_resolution(
@@ -118,16 +141,27 @@ def query_security_and_dependencies(
         "license": "Unknown"
     }
 
-    # 1. Query Vulnerability Advisories by Severity using UNNEST(Packages)
+    output["affected_version_ranges"] = []
+    output["active_cves_on_current_version"] = 0
+    output["patched_historical_cves"] = 0
+    output["is_current_version_vulnerable"] = False
+
+    # Resolve version if missing to guarantee exact version scoping
+    if not version:
+        resolution = query_package_resolution(package_name=package_name, system=target_system, client=client)
+        if resolution:
+            version = resolution.get("version")
+
+    # 1. Query Vulnerability Advisories & Affected Version Ranges using UNNEST(Packages)
     advisories_sql = """
     SELECT 
         UPPER(COALESCE(a.GitHubSeverity, a.Severity, 'UNKNOWN')) AS severity,
-        COUNT(DISTINCT a.SourceID) AS count
+        a.SourceID,
+        pkg.AffectedVersions AS affected_range
     FROM `bigquery-public-data.deps_dev_v1.Advisories` a,
     UNNEST(a.Packages) AS pkg
     WHERE pkg.System = @system 
       AND pkg.Name = @package_name
-    GROUP BY severity
     """
     job_config = bigquery.QueryJobConfig(
         query_parameters=[
@@ -138,24 +172,43 @@ def query_security_and_dependencies(
 
     try:
         rows = execute_safe_query(bq_client, advisories_sql, job_config=job_config, max_allowed_mb=settings.BQ_DEPS_DEV_MAX_ALLOWED_MB)
+        seen_sources = set()
+        ranges_set = set()
+
         for r in rows:
+            src = r.SourceID
             sev = (r.severity or "").upper()
-            cnt = r.count or 0
-            output["total_vulnerabilities"] += cnt
-            if "CRITICAL" in sev:
-                output["critical_vulnerabilities"] += cnt
-            elif "HIGH" in sev:
-                output["high_vulnerabilities"] += cnt
-            elif "MEDIUM" in sev or "MODERATE" in sev:
-                output["medium_vulnerabilities"] += cnt
-            elif "LOW" in sev:
-                output["low_vulnerabilities"] += cnt
-            else:
-                output["unknown_vulnerabilities"] += cnt
+            aff_range = r.affected_range
+
+            if aff_range:
+                ranges_set.add(aff_range)
+
+            if src not in seen_sources:
+                seen_sources.add(src)
+                output["total_vulnerabilities"] += 1
+                if "CRITICAL" in sev:
+                    output["critical_vulnerabilities"] += 1
+                elif "HIGH" in sev:
+                    output["high_vulnerabilities"] += 1
+                elif "MEDIUM" in sev or "MODERATE" in sev:
+                    output["medium_vulnerabilities"] += 1
+                elif "LOW" in sev:
+                    output["low_vulnerabilities"] += 1
+                else:
+                    output["unknown_vulnerabilities"] += 1
+
+                # Scoped Version Check: Is current version in affected range?
+                is_active = is_version_vulnerable(version, aff_range) if aff_range and version else False
+                if is_active:
+                    output["active_cves_on_current_version"] += 1
+                else:
+                    output["patched_historical_cves"] += 1
+
+        output["is_current_version_vulnerable"] = output["active_cves_on_current_version"] > 0
+        output["affected_version_ranges"] = list(ranges_set)[:5]
         logger.info(
-            f"   [deps.dev Security] Advisory Summary for '{package_name}': Total={output['total_vulnerabilities']} "
-            f"(Critical={output['critical_vulnerabilities']}, High={output['high_vulnerabilities']}, "
-            f"Medium={output['medium_vulnerabilities']}, Low={output['low_vulnerabilities']})"
+            f"   [deps.dev Security] Scoped Advisory Summary for '{package_name}' v{version or 'latest'}: "
+            f"Total={output['total_vulnerabilities']} (Active on current v{version}: {output['active_cves_on_current_version']}, Patched Historical: {output['patched_historical_cves']})"
         )
     except Exception as e:
         logger.error(f"Error querying advisories for {package_name}: {e}")

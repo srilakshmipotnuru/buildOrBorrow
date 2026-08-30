@@ -121,3 +121,44 @@ def fetch_recent_github_issues(
         logger.error(f"GitHub REST Repo issues endpoint failed for {full_repo}: {e}")
         return []
 
+
+def fetch_github_readme_summary(owner: str, repo: str) -> Dict[str, Any]:
+    """
+    Fetches the repository README.md header via GitHub REST API.
+    Scans for deprecation/renaming keywords: 'deprecated', 'renamed to', 'superseded by', 'no longer maintained'.
+    """
+    owner = owner.strip()
+    repo = repo.strip()
+    full_repo = f"{owner}/{repo}"
+
+    headers = {
+        "User-Agent": "BuildOrBorrow/1.0",
+        "Accept": "application/vnd.github.v3.raw",
+    }
+    if hasattr(settings, "GITHUB_TOKEN") and settings.GITHUB_TOKEN:
+        headers["Authorization"] = f"Bearer {settings.GITHUB_TOKEN}"
+
+    url = f"https://api.github.com/repos/{full_repo}/readme"
+    try:
+        response = requests.get(url, headers=headers, timeout=settings.GITHUB_API_TIMEOUT_SECONDS)
+        if response.status_code == 200:
+            readme_text = response.text[:2500]
+            lower_text = readme_text.lower()
+
+            deprecation_keywords = [
+                "deprecated", "renamed to", "superseded by", "moved to",
+                "no longer maintained", "archived", "unmaintained"
+            ]
+            is_deprecated_flag = any(kw in lower_text for kw in deprecation_keywords)
+            
+            logger.info(f"   [GitHub README] Retrieved README header for '{full_repo}' (Deprecation Warning Signal: {is_deprecated_flag})")
+            return {
+                "has_readme": True,
+                "is_deprecated_in_readme": is_deprecated_flag,
+                "readme_snippet": readme_text[:600]
+            }
+    except Exception as e:
+        logger.warning(f"GitHub README fetch failed for {full_repo}: {e}")
+
+    return {"has_readme": False, "is_deprecated_in_readme": False, "readme_snippet": ""}
+
