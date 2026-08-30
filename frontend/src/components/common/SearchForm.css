@@ -100,10 +100,6 @@
 .form-row {
   display: flex;
   gap: 1.25rem;
-
-  @media (max-width: 768px) {
-    flex-direction: column;
-  }
 }
 
 .form-group {
@@ -118,8 +114,19 @@
 
 .ecosystem-group {
   width: 220px;
+}
 
-  @media (max-width: 768px) {
+/* Mobile Responsiveness Breakpoints */
+@media (max-width: 768px) {
+  .mode-tabs-header {
+    flex-wrap: wrap;
+  }
+
+  .form-row {
+    flex-direction: column;
+  }
+
+  .ecosystem-group {
     width: 100%;
   }
 }
