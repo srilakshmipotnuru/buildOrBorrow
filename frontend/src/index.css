@@ -167,6 +167,7 @@ body {
 .ui-action-btn {
   display: inline-flex;
   align-items: center;
+  justify-content: center;
   gap: 0.4rem;
   padding: 0.45rem 0.85rem;
   border-radius: 8px;
@@ -177,6 +178,8 @@ body {
   font-weight: 600;
   cursor: pointer;
   transition: all 0.2s ease;
+  flex-shrink: 0;
+  white-space: nowrap;
 }
 
 .ui-action-btn:hover:not(:disabled) {

@@ -9,13 +9,14 @@
   align-items: flex-start;
   margin-bottom: 1.25rem;
   gap: 1rem;
-  flex-wrap: wrap;
 }
 
 .header-title-group {
   display: flex;
   align-items: flex-start;
   gap: 0.75rem;
+  flex: 1;
+  min-width: 0;
 }
 
 .header-icon {
@@ -52,6 +53,10 @@
   font-weight: 700;
   cursor: pointer;
   transition: all 0.2s ease;
+  flex-shrink: 0;
+  white-space: nowrap;
+  min-width: 135px;
+  justify-content: center;
 }
 
 .copy-code-btn:hover {
