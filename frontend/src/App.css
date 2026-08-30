@@ -41,4 +41,81 @@
   box-sizing: border-box;
 }
 
+.demo-preset-bar {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  margin-bottom: 1.25rem;
+  flex-wrap: wrap;
+  padding: 0.75rem 1rem;
+  border-radius: 12px;
+  background: var(--background-50);
+  border: 1px dashed var(--background-300);
+}
+
+.demo-label {
+  font-size: 0.85rem;
+  font-weight: 700;
+  color: var(--text-700);
+}
+
+.demo-chip {
+  padding: 0.4rem 0.85rem;
+  border-radius: 8px;
+  border: 1px solid transparent;
+  font-size: 0.825rem;
+  font-weight: 700;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.borrow-chip {
+  background: #ecfdf5;
+  border-color: #a7f3d0;
+  color: #047857;
+}
+
+.borrow-chip:hover {
+  background: #d1fae5;
+}
+
+.migrate-chip {
+  background: var(--secondary-100);
+  border-color: var(--secondary-300);
+  color: var(--secondary-800);
+}
+
+.migrate-chip:hover {
+  background: var(--secondary-200);
+}
+
+.build-chip {
+  background: var(--accent-100);
+  border-color: var(--accent-300);
+  color: var(--accent-900);
+}
+
+.build-chip:hover {
+  background: var(--accent-200);
+}
+
+.error-banner {
+  padding: 1rem 1.25rem;
+  border-radius: 12px;
+  background: var(--secondary-50);
+  border: 1px solid var(--secondary-200);
+  color: var(--secondary-800);
+  margin-bottom: 1.5rem;
+  font-size: 0.95rem;
+}
+
+.result-placeholder {
+  padding: 1.5rem;
+  border-radius: 12px;
+  background: var(--surface);
+  border: 1px solid var(--surface-border);
+  box-shadow: var(--shadow-sm);
+  color: var(--text-700);
+  font-size: 0.95rem;
+}
 

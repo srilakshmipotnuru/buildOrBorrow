@@ -107,3 +107,81 @@ body {
   color: var(--text);
 }
 
+/* ==========================================================================
+   REUSABLE DESIGN SYSTEM UTILITY PRIMITIVES
+   ========================================================================== */
+
+/* Standard UI Surface Card */
+.ui-card {
+  background: var(--surface);
+  border: 1px solid var(--surface-border);
+  border-radius: 16px;
+  padding: 1.5rem;
+  box-shadow: var(--shadow-md);
+  margin-bottom: 1.5rem;
+  transition: border-color 0.2s ease, box-shadow 0.2s ease;
+}
+
+.ui-card:hover {
+  border-color: var(--primary-200);
+}
+
+/* Reusable Status Badge Pills */
+.ui-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  padding: 0.3rem 0.75rem;
+  border-radius: 20px;
+  font-size: 0.8rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+}
+
+.ui-badge-borrow {
+  background: #ecfdf5;
+  color: #047857;
+  border: 1px solid #a7f3d0;
+}
+
+.ui-badge-migrate {
+  background: var(--secondary-50);
+  color: var(--secondary-800);
+  border: 1px solid var(--secondary-200);
+}
+
+.ui-badge-build {
+  background: var(--primary-50);
+  color: var(--primary-800);
+  border: 1px solid var(--primary-200);
+}
+
+.ui-badge-accent {
+  background: var(--accent-50);
+  color: var(--accent-800);
+  border: 1px solid var(--accent-200);
+}
+
+/* Reusable Action Icon Button */
+.ui-action-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  padding: 0.45rem 0.85rem;
+  border-radius: 8px;
+  border: 1px solid var(--background-200);
+  background: var(--background-50);
+  color: var(--text-600);
+  font-size: 0.825rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.ui-action-btn:hover:not(:disabled) {
+  background: var(--primary-50);
+  border-color: var(--primary-200);
+  color: var(--primary-800);
+}
+
