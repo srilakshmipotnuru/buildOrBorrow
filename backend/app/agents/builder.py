@@ -73,7 +73,7 @@ def generate_custom_build(
             f"   the user's specific feature requirement.\n"
             f"2. MUST BE ZERO-DEPENDENCY! Do NOT use third-party libraries (only Standard Library features).\n"
             f"3. dependencies_used array MUST be empty [].\n"
-            f"4. Provide a brief explanation of how the code works."
+            f"4. Provide a concise 1-sentence explanation (under 15 words) of how the custom code works."
         )
 
         from app.core.utils import call_gemini_with_retry
