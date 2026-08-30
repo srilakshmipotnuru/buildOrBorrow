@@ -1,0 +1,147 @@
+.forecast-chart-card {
+  background: var(--surface);
+  border-radius: 12px;
+  padding: 1rem 0 0 0;
+}
+
+.forecast-stats-row {
+  display: flex;
+  gap: 0.75rem;
+  margin-bottom: 1.25rem;
+  flex-wrap: wrap;
+}
+
+.stat-pill {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  padding: 0.5rem 0.85rem;
+  border-radius: 10px;
+  background: var(--background-50);
+  border: 1px solid var(--background-200);
+  flex: 1;
+  min-width: 140px;
+}
+
+.stat-icon {
+  width: 18px;
+  height: 18px;
+  color: var(--primary-600);
+  flex-shrink: 0;
+}
+
+.stat-content {
+  display: flex;
+  flex-direction: column;
+}
+
+.stat-label {
+  font-size: 0.725rem;
+  font-weight: 700;
+  color: var(--text-500);
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+}
+
+.stat-value {
+  font-size: 0.95rem;
+  font-weight: 800;
+  color: var(--text-950);
+}
+
+.trend-accelerating .stat-icon,
+.trend-accelerating .stat-value {
+  color: #059669;
+}
+
+.trend-declining .stat-icon,
+.trend-declining .stat-value {
+  color: var(--secondary-600);
+}
+
+.trend-stable .stat-icon,
+.trend-stable .stat-value {
+  color: var(--primary-600);
+}
+
+.signal-text {
+  font-size: 0.8rem;
+  color: var(--primary-700);
+}
+
+/* Chart Legend */
+.chart-legend-row {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 1.5rem;
+  margin-bottom: 0.5rem;
+  font-size: 0.8rem;
+  font-weight: 600;
+  color: var(--text-700);
+}
+
+.legend-item {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+}
+
+.legend-line-indicator {
+  width: 20px;
+  height: 3px;
+  background: var(--primary-500);
+  border-radius: 2px;
+  display: inline-block;
+}
+
+.legend-band-indicator {
+  width: 20px;
+  height: 12px;
+  background: rgba(90, 123, 176, 0.25);
+  border: 1px dashed #95b2d0;
+  border-radius: 3px;
+  display: inline-block;
+}
+
+/* Chart Styles */
+.chart-container {
+  width: 100%;
+  margin-top: 0.25rem;
+}
+
+.chart-custom-tooltip {
+  background: #0f172a;
+  color: #ffffff;
+  padding: 0.75rem 1rem;
+  border-radius: 8px;
+  font-size: 0.825rem;
+  box-shadow: 0 10px 25px rgba(0, 0, 0, 0.25);
+  border: 1px solid #334155;
+}
+
+.tooltip-date {
+  font-weight: 700;
+  color: #94a3b8;
+  margin: 0 0 0.35rem 0;
+  border-bottom: 1px solid #334155;
+  padding-bottom: 0.25rem;
+}
+
+.tooltip-projected {
+  margin: 0 0 0.2rem 0;
+  color: #38bdf8;
+}
+
+.tooltip-interval {
+  margin: 0;
+  color: #cbd5e1;
+}
+
+.empty-chart-msg {
+  padding: 2rem;
+  text-align: center;
+  color: var(--text-500);
+  font-size: 0.9rem;
+  font-style: italic;
+}

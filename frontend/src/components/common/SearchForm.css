@@ -1,0 +1,313 @@
+.search-form-card {
+  background: var(--surface);
+  border: 1px solid var(--surface-border);
+  border-radius: 16px;
+  padding: 1.75rem;
+  box-shadow: var(--shadow-md);
+  margin-bottom: 2rem;
+  transition: border-color 0.2s ease, box-shadow 0.2s ease;
+}
+
+.search-form-card:hover {
+  border-color: var(--primary-200);
+}
+
+/* Mode Tabs Header */
+.mode-tabs-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  margin-bottom: 1.5rem;
+  border-bottom: 1px solid var(--background-100);
+  padding-bottom: 0.75rem;
+}
+
+.mode-tabs {
+  display: flex;
+  gap: 0.75rem;
+}
+
+.top-reset-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  padding: 0.45rem 0.85rem;
+  border-radius: 8px;
+  border: 1px solid var(--background-200);
+  background: var(--background-50);
+  color: var(--text-600);
+  font-size: 0.825rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.top-reset-btn:hover:not(:disabled) {
+  background: var(--secondary-50);
+  border-color: var(--secondary-200);
+  color: var(--secondary-700);
+  transform: translateY(-1px);
+}
+
+.top-reset-btn:active:not(:disabled) {
+  transform: translateY(0);
+}
+
+.top-reset-icon {
+  width: 14px;
+  height: 14px;
+}
+
+.mode-tab {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.6rem 1.2rem;
+  border-radius: 10px;
+  font-size: 0.925rem;
+  font-weight: 600;
+  border: 1px solid transparent;
+  background: var(--background-50);
+  color: var(--text-600);
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.mode-tab:hover {
+  background: var(--primary-50);
+  color: var(--primary-700);
+}
+
+.mode-tab.active {
+  background: var(--primary);
+  color: #ffffff;
+  box-shadow: var(--shadow-sm);
+}
+
+.tab-icon {
+  width: 18px;
+  height: 18px;
+}
+
+/* Form Controls */
+.search-form {
+  display: flex;
+  flex-direction: column;
+  gap: 1.25rem;
+}
+
+.form-row {
+  display: flex;
+  gap: 1.25rem;
+
+  @media (max-width: 768px) {
+    flex-direction: column;
+  }
+}
+
+.form-group {
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+}
+
+.main-input-group {
+  flex: 1;
+}
+
+.ecosystem-group {
+  width: 220px;
+
+  @media (max-width: 768px) {
+    width: 100%;
+  }
+}
+
+.form-label {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  font-size: 0.875rem;
+  font-weight: 700;
+  color: var(--text-800);
+}
+
+.label-icon {
+  width: 16px;
+  height: 16px;
+  color: var(--primary-500);
+}
+
+.optional-tag {
+  font-weight: 400;
+  color: var(--text-500);
+  font-size: 0.8rem;
+}
+
+.input-wrapper {
+  position: relative;
+  display: flex;
+  align-items: center;
+}
+
+.input-icon {
+  position: absolute;
+  left: 1rem;
+  width: 20px;
+  height: 20px;
+  color: var(--text-400);
+  pointer-events: none;
+}
+
+.form-input {
+  width: 100%;
+  padding: 0.75rem 2.5rem 0.75rem 2.8rem;
+  border-radius: 10px;
+  border: 1px solid var(--background-200);
+  background: var(--background-50);
+  color: var(--text-950);
+  font-size: 0.95rem;
+  font-family: inherit;
+  box-sizing: border-box;
+  transition: all 0.2s ease;
+}
+
+.secondary-input {
+  padding-left: 1rem;
+  padding-right: 2.5rem;
+}
+
+.input-clear-btn {
+  position: absolute;
+  right: 0.75rem;
+  background: var(--background-200);
+  border: none;
+  border-radius: 50%;
+  width: 22px;
+  height: 22px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  color: var(--text-600);
+  transition: all 0.15s ease;
+  padding: 0;
+}
+
+.input-clear-btn:hover {
+  background: var(--secondary-200);
+  color: var(--secondary-800);
+}
+
+.clear-x-icon {
+  width: 14px;
+  height: 14px;
+}
+
+.form-input:focus {
+  outline: none;
+  border-color: var(--primary-400);
+  background: #ffffff;
+  box-shadow: 0 0 0 3px rgba(90, 123, 176, 0.15);
+}
+
+.form-select {
+  appearance: none;
+  -webkit-appearance: none;
+  -moz-appearance: none;
+  width: 100%;
+  padding: 0.75rem 2.5rem 0.75rem 1rem;
+  border-radius: 10px;
+  border: 1px solid var(--background-200);
+  background-color: var(--background-50);
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' viewBox='0 0 24 24' fill='none' stroke='%235a7bb0' stroke-width='2.5' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 1rem center;
+  background-size: 16px 16px;
+  color: var(--text-950);
+  font-size: 0.95rem;
+  font-family: inherit;
+  font-weight: 600;
+  cursor: pointer;
+  box-sizing: border-box;
+  transition: all 0.2s ease;
+}
+
+.form-select:focus {
+  outline: none;
+  border-color: var(--primary-400);
+  background-color: #ffffff;
+  box-shadow: 0 0 0 3px rgba(90, 123, 176, 0.15);
+}
+
+.form-select option {
+  background-color: #ffffff;
+  color: var(--text-950);
+  font-weight: 600;
+  padding: 0.75rem 1rem;
+}
+
+.form-error {
+  padding: 0.6rem 1rem;
+  border-radius: 8px;
+  background: var(--secondary-50);
+  border: 1px solid var(--secondary-200);
+  color: var(--secondary-700);
+  font-size: 0.875rem;
+  font-weight: 500;
+}
+
+/* Submit Button */
+.submit-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.6rem;
+  height: 46px;
+  padding: 0 1.75rem;
+  border-radius: 12px;
+  border: none;
+  background: var(--linearPrimarySecondary);
+  color: #ffffff;
+  font-size: 0.975rem;
+  font-weight: 700;
+  cursor: pointer;
+  transition: transform 0.15s ease, opacity 0.2s ease, box-shadow 0.2s ease;
+  box-shadow: var(--shadow-md);
+  margin-top: 0.5rem;
+  width: 100%;
+}
+
+.submit-btn:hover:not(:disabled) {
+  transform: translateY(-1px);
+  box-shadow: 0 6px 16px rgba(90, 123, 176, 0.25);
+}
+
+.submit-btn:active:not(:disabled) {
+  transform: translateY(0);
+}
+
+.submit-btn:disabled {
+  opacity: 0.75;
+  cursor: not-allowed;
+}
+
+.btn-icon {
+  width: 20px;
+  height: 20px;
+}
+
+.spinner {
+  animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+  from {
+    transform: rotate(0deg);
+  }
+
+  to {
+    transform: rotate(360deg);
+  }
+}
