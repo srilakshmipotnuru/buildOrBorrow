@@ -234,3 +234,15 @@ In Task Requirement Mode, the Candidate Finder LLM occasionally suggests candida
 ### **Proposed Enhancement:**
 - **Existence Filter**: In [`candidate_finder.py`](file:///d:/Downloads/patchamomma/buildOrBorrow/backend/app/agents/candidate_finder.py), filter the screened candidate list to ensure `verified_exists == True` before selecting a primary package for deep pipeline evaluation.
 - **Micro-Task Fallback**: If 0 candidates have `verified_exists == True`, automatically trigger the **Native Micro-Task Fast-Path** (Item 10) to issue **`BUILD`** without running deep pipeline evaluations on fake package names.
+
+---
+
+## 15. 🏆 OpenSSF & `deps.dev` Automated Validation Benchmark Integration
+
+### **Value Proposition Differentiation:**
+While raw data platforms like **OpenSSF Scorecards** (`openssf:scorecardcron.scorecard-v2`) and **`deps.dev`** output passive security metrics (e.g., `4.2/10`), **BuildOrBorrow** acts as the actionable **AI Decision & Code Generation Engine** that transforms raw data into `BORROW`, `MIGRATE`, or `BUILD` verdicts and generates custom zero-dependency code snippets on the spot.
+
+### **Proposed Validation Suite (`backend/scripts/benchmark_validation.py`):**
+- **Validation Dataset**: Query `https://api.securityscorecards.dev/projects/github.com/{owner}/{repo}` to extract official ground-truth OpenSSF scores (0-10) for top 100 packages across PyPI, NPM, Cargo, Go, and Maven.
+- **Decision Accuracy Benchmark**: Compare BuildOrBorrow's 90-day predicted health scores (`0-100`) and verdicts (`BORROW`, `MIGRATE`, `BUILD`) against OpenSSF maintainer scores and `deps.dev` advisory data.
+- **Accuracy Metric Output**: Output automated benchmark reports calculating Verdict Accuracy Rate (`%`), Pipeline Latency (`s`), and Code Generation Success Rate (`%`).
