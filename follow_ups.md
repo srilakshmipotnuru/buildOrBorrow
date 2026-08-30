@@ -223,3 +223,14 @@ Currently, REST calls to the GitHub API (`api.github.com/repos/...` and `api.git
 - Add an optional `GITHUB_TOKEN: Optional[str] = None` setting in [`config.py`](file:///d:/Downloads/patchamomma/buildOrBorrow/backend/app/core/config.py).
 - In [`github_issues.py`](file:///d:/Downloads/patchamomma/buildOrBorrow/backend/app/services/github_issues.py), attach `headers={"Authorization": f"token {settings.GITHUB_TOKEN}"}` if configured.
 - Attaching a GitHub Personal Access Token raises the API rate limit from **60 requests/hour to 5,000 requests/hour**!
+
+---
+
+## 14. 🎯 Automated Candidate Verification Filter (`verified_exists == True`) in Candidate Finder
+
+### **Problem Statement:**
+In Task Requirement Mode, the Candidate Finder LLM occasionally suggests candidate package names that do not exist on the target ecosystem registry (PyPI/NPM), returning `verified_exists: false` (e.g. `add2ints`, `mathutils-plus`, `simple-adder`).
+
+### **Proposed Enhancement:**
+- **Existence Filter**: In [`candidate_finder.py`](file:///d:/Downloads/patchamomma/buildOrBorrow/backend/app/agents/candidate_finder.py), filter the screened candidate list to ensure `verified_exists == True` before selecting a primary package for deep pipeline evaluation.
+- **Micro-Task Fallback**: If 0 candidates have `verified_exists == True`, automatically trigger the **Native Micro-Task Fast-Path** (Item 10) to issue **`BUILD`** without running deep pipeline evaluations on fake package names.
