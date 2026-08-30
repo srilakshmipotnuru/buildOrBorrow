@@ -49,7 +49,7 @@ class Settings(BaseSettings):
     # =========================================================================
     # GENERATIVE AI (GEMINI) AGENT CONFIGURATION
     # =========================================================================
-    GEMINI_MODEL_NAME: str = "gemini-2.5-flash"          # Primary Gemini model used across all AI agents
+    GEMINI_MODEL_NAME: str = "gemini-3.6-flash"          # Primary Gemini model used across all AI agents
     FALLBACK_GEMINI_MODEL_NAME: str = "gemini-3.5-flash-lite" # Active supported fallback model when primary hits rate limits or capacity spikes
     GEMINI_DEFAULT_TEMPERATURE: float = 0.1             # Low temperature for deterministic output (Candidate, Diagnosis, Verdict)
     GEMINI_BUILDER_TEMPERATURE: float = 0.2             # Slightly higher temperature for creative zero-dep code snippet generation

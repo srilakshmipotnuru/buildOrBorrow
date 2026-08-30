@@ -65,16 +65,12 @@ def call_gemini_with_retry(
         except Exception as e:
             last_exception = e
             err_msg = str(e)
-            is_temporary_error = "503" in err_msg or "UNAVAILABLE" in err_msg or "429" in err_msg or "RESOURCE_EXHAUSTED" in err_msg
+            is_temporary_error = "503" in err_msg or "UNAVAILABLE" in err_msg or "429" in err_msg or "RESOURCE_EXHAUSTED" in err_msg or "404" in err_msg or "NOT_FOUND" in err_msg
             
             if is_temporary_error and attempt < len(models_to_try) - 1:
                 next_model = models_to_try[attempt + 1]
-                sleep_seconds = 1.0
-                logger.warning(
-                    f"Gemini call to '{model_name}' failed with rate limit/capacity error ({err_msg[:120]}...). "
-                    f"Switching to fallback model '{next_model}' (Attempt {attempt + 2}/{len(models_to_try)})..."
-                )
-                time.sleep(sleep_seconds)
+                logger.info(f"   [Model Failover] '{model_name}' rate limited/unavailable -> Switching to '{next_model}'")
+                time.sleep(1.0)
             else:
                 logger.error(f"Gemini API call to '{model_name}' failed: {e}")
 

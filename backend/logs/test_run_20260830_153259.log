@@ -1,0 +1,121 @@
+================================================================================
+ [BUILDORBORROW BENCHMARK TEST SUITE]
+   BuildOrBorrow Evaluation Pipeline Benchmark Test Suite
+   Execution Mode: Direct Python In-Process Engine
+   Log Timestamp : 20260830_153259
+================================================================================
+
+ === PART 1: PACKAGE MODE TESTS ===
+
+[PKG-001] Testing 'pep8' (pypi) - Category: Deprecated / Abandoned Package
+GitHub Search API returned HTTP 422 for jcrocholl/pep8, falling back to REST endpoint.
+   ⚠️ GitHub README Warning: Deprecation/renaming keywords detected in README for jcrocholl/pep8
+Direct use of automatic function calling (AFC) in Models.generate_content is not recommended. Instead, we recommend to use AFC in Chat.send_message. Similarly, direct use of AFC in Models.generate_content_stream is not recommended. Instead, we recommend to use AFC in Chat.send_message_stream.
+   [PASS] | Actual Verdict: MIGRATE (Expected: MIGRATE) | Confidence: 1.0 | Diagnosis: ABANDONED_STRUGGLING | Time: 41.24s
+   🔍 EVIDENCE CHAIN:
+      1. Resolution     : None vNone (Project: N/A)
+      2. Security       : 0 Active CVEs on current vNone (0 Critical, 0 Patched)
+      3. Health Score   : 0.0 / 100 (Signal: N/A)
+      4. Diagnosis      : ABANDONED_STRUGGLING (Is Abandoned: True)
+      5. Final Decision : MIGRATE -> Recommended Alternative: 'pycodestyle'
+--------------------------------------------------------------------------------
+[PKG-002] Testing 'left-pad' (npm) - Category: Micro-Utility (Trivial Package)
+GitHub Search API returned HTTP 422 for stevemao/left-pad, falling back to REST endpoint.
+   [PASS] | Actual Verdict: BUILD (Expected: BUILD) | Confidence: 1.0 | Diagnosis: MATURE_STABLE | Time: 59.38s
+   🔍 EVIDENCE CHAIN:
+      1. Resolution     : None vNone (Project: N/A)
+      2. Security       : 0 Active CVEs on current vNone (0 Critical, 0 Patched)
+      3. Health Score   : 0.0 / 100 (Signal: N/A)
+      4. Diagnosis      : MATURE_STABLE (Is Abandoned: False)
+      5. Final Decision : BUILD -> Estimated Effort: 5 lines of code, ~5 mins
+--------------------------------------------------------------------------------
+[PKG-003] Testing 'requests-async' (pypi) - Category: Abandoned Unmaintained Async Library
+GitHub Search API returned HTTP 422 for yourusername/async-requests, falling back to REST endpoint.
+GitHub REST Repo issues endpoint returned HTTP 404 for yourusername/async-requests
+   [PASS] | Actual Verdict: MIGRATE (Expected: MIGRATE) | Confidence: 1.0 | Diagnosis: ABANDONED_STRUGGLING | Time: 35.55s
+   🔍 EVIDENCE CHAIN:
+      1. Resolution     : None vNone (Project: N/A)
+      2. Security       : 0 Active CVEs on current vNone (0 Critical, 0 Patched)
+      3. Health Score   : 0.0 / 100 (Signal: N/A)
+      4. Diagnosis      : ABANDONED_STRUGGLING (Is Abandoned: True)
+      5. Final Decision : MIGRATE -> Recommended Alternative: 'httpx'
+--------------------------------------------------------------------------------
+[PKG-004] Testing 'is-number' (npm) - Category: Micro-Utility Numeric Helper
+   [PASS] | Actual Verdict: BUILD (Expected: BUILD) | Confidence: 1.0 | Diagnosis: MATURE_STABLE | Time: 33.79s
+   🔍 EVIDENCE CHAIN:
+      1. Resolution     : None vNone (Project: N/A)
+      2. Security       : 0 Active CVEs on current vNone (0 Critical, 0 Patched)
+      3. Health Score   : 0.0 / 100 (Signal: N/A)
+      4. Diagnosis      : MATURE_STABLE (Is Abandoned: False)
+      5. Final Decision : BUILD -> Estimated Effort: 8 lines of code, ~5 mins
+--------------------------------------------------------------------------------
+[PKG-005] Testing 'requests' (pypi) - Category: Healthy Core Infrastructure Package
+   [PASS] | Actual Verdict: BORROW (Expected: BORROW) | Confidence: 1.0 | Diagnosis: MATURE_STABLE | Time: 29.91s
+   🔍 EVIDENCE CHAIN:
+      1. Resolution     : None vNone (Project: N/A)
+      2. Security       : 0 Active CVEs on current vNone (0 Critical, 0 Patched)
+      3. Health Score   : 0.0 / 100 (Signal: N/A)
+      4. Diagnosis      : MATURE_STABLE (Is Abandoned: False)
+      5. Final Decision : BORROW -> High utility bedrock library
+--------------------------------------------------------------------------------
+[PKG-006] Testing 'numpy' (pypi) - Category: Complex Numerical & Scientific Library
+   [PASS] | Actual Verdict: BORROW (Expected: BORROW) | Confidence: 1.0 | Diagnosis: MATURE_STABLE | Time: 31.49s
+   🔍 EVIDENCE CHAIN:
+      1. Resolution     : None vNone (Project: N/A)
+      2. Security       : 0 Active CVEs on current vNone (0 Critical, 0 Patched)
+      3. Health Score   : 0.0 / 100 (Signal: N/A)
+      4. Diagnosis      : MATURE_STABLE (Is Abandoned: False)
+      5. Final Decision : BORROW -> High utility bedrock library
+--------------------------------------------------------------------------------
+[PKG-007] Testing 'lodash' (npm) - Category: Foundational JS Utility Suite
+   [PASS] | Actual Verdict: BORROW (Expected: BORROW) | Confidence: 1.0 | Diagnosis: MATURE_STABLE | Time: 30.07s
+   🔍 EVIDENCE CHAIN:
+      1. Resolution     : None vNone (Project: N/A)
+      2. Security       : 0 Active CVEs on current vNone (0 Critical, 0 Patched)
+      3. Health Score   : 0.0 / 100 (Signal: N/A)
+      4. Diagnosis      : MATURE_STABLE (Is Abandoned: False)
+      5. Final Decision : BORROW -> High utility bedrock library
+--------------------------------------------------------------------------------
+[PKG-008] Testing 'slugify' (pypi) - Category: Simple String Slugification Helper
+   [PASS] | Actual Verdict: BUILD (Expected: BUILD) | Confidence: 1.0 | Diagnosis: MATURE_STABLE | Time: 34.43s
+   🔍 EVIDENCE CHAIN:
+      1. Resolution     : None vNone (Project: N/A)
+      2. Security       : 0 Active CVEs on current vNone (0 Critical, 0 Patched)
+      3. Health Score   : 0.0 / 100 (Signal: N/A)
+      4. Diagnosis      : MATURE_STABLE (Is Abandoned: False)
+      5. Final Decision : BUILD -> Estimated Effort: 15 lines of code, ~10 mins
+--------------------------------------------------------------------------------
+
+ === PART 2: TASK MODE TESTS ===
+
+[TASK-001] Task: 'Parse RSS and Atom feeds in Python' (pypi) - Category: RSS Feed Parsing Task
+   [SUCCESS] | Candidates Found: [feedparser, defusedxml, atoma]
+   👉 Primary Candidate Evaluated: 'feedparser' -> Verdict: BORROW | Time: 44.09s
+--------------------------------------------------------------------------------
+[TASK-002] Task: 'Format dates and time intervals in JavaScript' (npm) - Category: JavaScript Date Formatting Task
+   [SUCCESS] | Candidates Found: [date-fns, dayjs, luxon]
+   👉 Primary Candidate Evaluated: 'date-fns' -> Verdict: BORROW | Time: 48.44s
+--------------------------------------------------------------------------------
+[TASK-003] Task: 'Convert HTML strings to clean Markdown syntax in Python' (pypi) - Category: HTML to Markdown Conversion Task
+   [SUCCESS] | Candidates Found: [markdownify, html2text, beautifulsoup4]
+   👉 Primary Candidate Evaluated: 'markdownify' -> Verdict: BORROW | Time: 46.48s
+--------------------------------------------------------------------------------
+[TASK-004] Task: 'Pad string on the left with custom character' (npm) - Category: Micro String Padding Task
+   [SUCCESS] | Candidates Found: [lodash.padStart, left-pad, string.prototype.padstart]
+   👉 Primary Candidate Evaluated: 'lodash.padstart' -> Verdict: BUILD | Time: 51.86s
+--------------------------------------------------------------------------------
+[TASK-005] Task: 'HTTP client with async and sync support in Python' (pypi) - Category: Async HTTP Requests Task
+   [SUCCESS] | Candidates Found: [httpx, requests-async, aiohttp]
+   👉 Primary Candidate Evaluated: 'httpx' -> Verdict: BORROW | Time: 66.85s
+--------------------------------------------------------------------------------
+
+================================================================================
+ SUMMARY RESULTS:
+   Package Mode Pass Rate : 8 / 8 (100.0%)
+   Task Mode Pass Rate    : 5 / 5 (100.0%)
+
+   [LOG STORAGE] Automatically saved test logs to:
+   -> Latest Log    : C:\Users\tvars\OneDrive\Desktop\my_project\buildOrBorrow\backend\logs\test_run_latest.log
+   -> Timestamped   : C:\Users\tvars\OneDrive\Desktop\my_project\buildOrBorrow\backend\logs\test_run_20260830_153259.log
+================================================================================
+

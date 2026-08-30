@@ -1,0 +1,36 @@
+===================================================================================================================
+ 🧪 BUILDORBORROW BENCHMARK TEST SUITE SUMMARY REPORT
+ Log Timestamp : 20260830_153527 | Execution Mode: Direct Python In-Process Engine
+===================================================================================================================
+
+📦 PART 1: PACKAGE MODE EVALUATIONS
++---------+----------------+--------+------------------+----------------------+--------------------+----------+--------+
+| Test ID | Package        | System | Expected         | Actual Verdict       | Diagnosis          | Time (s) | Result |
++---------+----------------+--------+------------------+----------------------+--------------------+----------+--------+
+| PKG-001 | pep8           | pypi   | MIGRATE          | MIGRATE (pycodestyle | MATURE_STABLE      | 35.81    | PASS   |
+| PKG-002 | left-pad       | npm    | BUILD            | BUILD (10 lines of c | MATURE_STABLE      | 34.31    | PASS   |
+| PKG-003 | requests-async | pypi   | MIGRATE          | MIGRATE (httpx)      | ABANDONED_STRUGGLI | 33.12    | PASS   |
+| PKG-004 | is-number      | npm    | BUILD            | BUILD (10 lines of c | MATURE_STABLE      | 32.55    | PASS   |
+| PKG-005 | requests       | pypi   | BORROW           | BORROW               | MATURE_STABLE      | 29.89    | PASS   |
+| PKG-006 | numpy          | pypi   | BORROW           | BORROW               | MATURE_STABLE      | 30.66    | PASS   |
+| PKG-007 | lodash         | npm    | BORROW           | BORROW               | MATURE_STABLE      | 31.97    | PASS   |
+| PKG-008 | slugify        | pypi   | BUILD            | BUILD (15 lines of c | MATURE_STABLE      | 32.18    | PASS   |
++---------+----------------+--------+------------------+----------------------+--------------------+----------+--------+
+
+🛠️ PART 2: TASK MODE EVALUATIONS
++---------+---------------------------------------------+--------+-------------------------+----------------+----------+--------+
+| Test ID | Task Description                            | System | Candidates Found        | Primary Package | Verdict  | Result |
++---------+---------------------------------------------+--------+-------------------------+----------------+----------+--------+
+| TASK-001 | Parse RSS and Atom feeds in Python          | pypi   | feedparser, defusedxm.. | feedparser     | BORROW   | SUCCESS |
+| TASK-002 | Format dates and time intervals in JavaSc.. | npm    | date-fns, dayjs, luxon  | date-fns       | BORROW   | SUCCESS |
+| TASK-003 | Convert HTML strings to clean Markdown sy.. | pypi   | markdownify, html2tex.. | markdownify    | BORROW   | SUCCESS |
+| TASK-004 | Pad string on the left with custom charac.. | npm    | lodash.padStart, left.. | lodash.padstar | BUILD    | SUCCESS |
+| TASK-005 | HTTP client with async and sync support i.. | pypi   | httpx, requests-async.. | httpx          | BORROW   | SUCCESS |
++---------+---------------------------------------------+--------+-------------------------+----------------+----------+--------+
+
+===================================================================================================================
+ ACCURACY METRICS:
+   Package Mode Pass Rate : 8 / 8 (100.0%)
+   Task Mode Pass Rate    : 5 / 5 (100.0%)
+   Overall Benchmark Score: 13 / 13 (100.0%)
+===================================================================================================================

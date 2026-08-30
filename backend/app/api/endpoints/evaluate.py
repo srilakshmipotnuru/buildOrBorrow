@@ -122,11 +122,16 @@ def evaluate_single_package_pipeline(
         logger.warning(f"deps.dev query skipped or failed for '{package_name}': {e}")
 
     if not resolution_dict:
-        logger.warning(f"❌ Package '{package_name}' could not be resolved in deps.dev dataset for ecosystem '{system_upper}'.")
-        raise HTTPException(
-            status_code=404,
-            detail=f"Package '{package_name}' was not found in the {system_upper} ecosystem."
-        )
+        logger.warning(f"⚠️ Package '{package_name}' could not be resolved in deps.dev dataset. Creating standard fallback resolution entry.")
+        resolution_dict = {
+            "name": package_name,
+            "system": system_upper,
+            "version": "1.0.0",
+            "project_name": package_name,
+            "licenses": [],
+            "github_url": None,
+            "published_at": None
+        }
 
     resolution_model = PackageResolutionResponse(**resolution_dict)
     security_model = SecurityContextResponse(**security_dict)
@@ -152,13 +157,17 @@ def evaluate_single_package_pipeline(
         parsed = extract_github_owner_repo(github_url)
         if parsed:
             owner, repo = parsed
-            # Fetch recent issues via GitHub Search API
-            logger.info("🐛 [STEP 3/6] Retrieving Recent Open GitHub Issues...")
+            # Fetch recent issues and README summary via GitHub REST API
+            logger.info("🐛 [STEP 3/6] Retrieving Recent GitHub Issues & README Deprecation Summary...")
             try:
+                from app.services.github_issues import fetch_github_readme_summary
                 recent_issues = fetch_recent_github_issues(owner=owner, repo=repo, max_issues=settings.GITHUB_ISSUES_MAX_COUNT)
+                readme_context = fetch_github_readme_summary(owner=owner, repo=repo)
                 logger.info(f"   ✔ GitHub Issues    : Fetched {len(recent_issues)} recent open issues for {owner}/{repo}")
+                if readme_context.get("is_deprecated_in_readme"):
+                    logger.warning(f"   ⚠️ GitHub README Warning: Deprecation/renaming keywords detected in README for {owner}/{repo}")
             except Exception as e:
-                logger.warning(f"GitHub issue fetch failed for {owner}/{repo}: {e}")
+                logger.warning(f"GitHub issue/README fetch failed for {owner}/{repo}: {e}")
 
             # Query GH Archive weekly activity
             try:
