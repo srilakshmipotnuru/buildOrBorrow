@@ -237,12 +237,13 @@ In Task Requirement Mode, the Candidate Finder LLM occasionally suggests candida
 
 ---
 
-## 15. 🏆 OpenSSF & `deps.dev` Automated Validation Benchmark Integration
+## 15. 🏆 OpenSSF, ecosyste.ms & CHAOSS Validation Benchmark Integration
 
 ### **Value Proposition Differentiation:**
-While raw data platforms like **OpenSSF Scorecards** (`openssf:scorecardcron.scorecard-v2`) and **`deps.dev`** output passive security metrics (e.g., `4.2/10`), **BuildOrBorrow** acts as the actionable **AI Decision & Code Generation Engine** that transforms raw data into `BORROW`, `MIGRATE`, or `BUILD` verdicts and generates custom zero-dependency code snippets on the spot.
+While raw data platforms like **Google deps.dev**, **OpenSSF Scorecards** (`api.securityscorecards.dev`), **ecosyste.ms**, and **CHAOSS Metrics** output passive metrics (e.g. `4.2/10`), **BuildOrBorrow** acts as the actionable **AI Decision & Code Generation Engine** that transforms raw data into `BORROW`, `MIGRATE`, or `BUILD` verdicts and generates custom zero-dependency code snippets on the spot.
 
-### **Proposed Validation Suite (`backend/scripts/benchmark_validation.py`):**
-- **Validation Dataset**: Query `https://api.securityscorecards.dev/projects/github.com/{owner}/{repo}` to extract official ground-truth OpenSSF scores (0-10) for top 100 packages across PyPI, NPM, Cargo, Go, and Maven.
-- **Decision Accuracy Benchmark**: Compare BuildOrBorrow's 90-day predicted health scores (`0-100`) and verdicts (`BORROW`, `MIGRATE`, `BUILD`) against OpenSSF maintainer scores and `deps.dev` advisory data.
-- **Accuracy Metric Output**: Output automated benchmark reports calculating Verdict Accuracy Rate (`%`), Pipeline Latency (`s`), and Code Generation Success Rate (`%`).
+### **4 External Datasets & APIs for Validation (`backend/scripts/benchmark_validation.py`):**
+1. **Google `deps.dev` BigQuery Dataset**: (Currently used in BuildOrBorrow) Package resolution, OSV vulnerabilities, and dependency counts across PyPI, NPM, Cargo, Go, and Maven.
+2. **OpenSSF Scorecard REST API & BigQuery Dataset** (`api.securityscorecards.dev` / `openssf:scorecardcron.scorecard-v2`): Extracts official ground-truth maintainer & security scores (0-10) for 1M+ GitHub repositories across ALL languages.
+3. **`ecosyste.ms` API**: Cross-ecosystem dependency graph metadata across 15+ package registries.
+4. **Linux Foundation CHAOSS Metrics**: 80+ standardized open-source sustainability & health metrics.
