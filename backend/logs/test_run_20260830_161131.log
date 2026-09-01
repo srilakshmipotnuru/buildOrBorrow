@@ -1,0 +1,49 @@
+===================================================================================================================
+ 🧪 BUILDORBORROW BENCHMARK TEST SUITE SUMMARY REPORT
+ Log Timestamp : 20260830_161131 | Execution Mode: Direct Python In-Process Engine
+===================================================================================================================
+
+📦 PART 1: PACKAGE MODE EVALUATIONS
++---------+----------------+--------+------------------+----------------------+--------------------+----------+--------+
+| Test ID | Package        | System | Expected         | Actual Verdict       | Diagnosis          | Time (s) | Result |
++---------+----------------+--------+------------------+----------------------+--------------------+----------+--------+
+| PKG-001 | request        | npm    | MIGRATE          | MIGRATE (axios)      | ABANDONED_STRUGGLI | 1296.32  | PASS   |
+| PKG-002 | mock           | pypi   | MIGRATE          | BORROW               | MATURE_STABLE      | 42.04    | MISMATCH |
+| PKG-003 | pycrypto       | pypi   | MIGRATE          | MIGRATE (cryptograph | MATURE_STABLE      | 35.86    | PASS   |
+| PKG-004 | moment         | npm    | MIGRATE          | BORROW               | MATURE_STABLE      | 41.98    | MISMATCH |
+| PKG-005 | nose           | pypi   | MIGRATE          | MIGRATE (pytest)     | MATURE_STABLE      | 38.37    | PASS   |
+| PKG-006 | is-even        | npm    | BUILD            | BUILD (1 line of cod | MATURE_STABLE      | 43.68    | PASS   |
+| PKG-007 | arr-flatten    | npm    | BUILD            | BORROW               | MATURE_STABLE      | 43.70    | MISMATCH |
+| PKG-008 | escape-string-regexp | npm    | BUILD            | BORROW               | MATURE_STABLE      | 41.01    | MISMATCH |
+| PKG-009 | is-whitespace  | npm    | BUILD            | BUILD (1 line of cod | MATURE_STABLE      | 43.35    | PASS   |
+| PKG-010 | urllib3        | pypi   | BORROW           | BORROW               | MATURE_STABLE      | 44.29    | PASS   |
+| PKG-011 | jinja2         | pypi   | BORROW           | BORROW               | MATURE_STABLE      | 52.59    | PASS   |
+| PKG-012 | express        | npm    | BORROW           | BORROW               | MATURE_STABLE      | 43.82    | PASS   |
+| PKG-013 | fastapi        | pypi   | BORROW           | BORROW               | MATURE_STABLE      | 94.25    | PASS   |
+| PKG-014 | click          | pypi   | BORROW           | BORROW               | MATURE_STABLE      | 45.70    | PASS   |
+| PKG-015 | chalk          | npm    | BORROW           | BORROW               | MATURE_STABLE      | 40.55    | PASS   |
+| PKG-016 | pydantic       | pypi   | BORROW           | BORROW               | MATURE_STABLE      | 44.86    | PASS   |
++---------+----------------+--------+------------------+----------------------+--------------------+----------+--------+
+
+🛠️ PART 2: TASK MODE EVALUATIONS
++---------+---------------------------------------------+--------+-------------------------+----------------+----------+--------+
+| Test ID | Task Description                            | System | Candidates Found        | Primary Package | Verdict  | Result |
++---------+---------------------------------------------+--------+-------------------------+----------------+----------+--------+
+| TASK-001 | Output colored and styled text in the Nod.. | npm    | chalk, kleur, colorette | chalk          | BORROW   | SUCCESS |
+| TASK-002 | Determine whether an integer value is eve.. | npm    | is-even, is-odd, is-n.. | is-even        | BUILD    | SUCCESS |
+| TASK-003 | Parse, validate, manipulate, and display .. | npm    | date-fns, dayjs, luxon  | date-fns       | BORROW   | SUCCESS |
+| TASK-004 | Runtime data validation, serialization, a.. | pypi   | pydantic, attrs, cattrs | pydantic       | BORROW   | SUCCESS |
+| TASK-005 | Generate RFC4122 version 4 random unique .. | npm    | uuid, crypto-js, nanoid | uuid           | BORROW   | SUCCESS |
+| TASK-006 | Perform HTTP GET and POST requests with c.. | npm    | axios, node-fetch, got  | axios          | BORROW   | SUCCESS |
+| TASK-007 | Build nested command-line interfaces with.. | pypi   | click, typer, fire      | click          | BORROW   | SUCCESS |
+| TASK-008 | Encrypt and decrypt payloads with AES-GCM.. | pypi   | cryptography, pycrypt.. | cryptography   | BORROW   | SUCCESS |
+| TASK-009 | Read key-value pairs from a .env file and.. | pypi   | python-dotenv, dotenv.. | python-dotenv  | BORROW   | SUCCESS |
+| TASK-010 | Flatten multidimensional nested arrays in.. | npm    | lodash, flat, just-fl.. | lodash         | BORROW   | SUCCESS |
++---------+---------------------------------------------+--------+-------------------------+----------------+----------+--------+
+
+===================================================================================================================
+ ACCURACY METRICS:
+   Package Mode Pass Rate : 12 / 16 (75.0%)
+   Task Mode Pass Rate    : 10 / 10 (100.0%)
+   Overall Benchmark Score: 22 / 26 (84.6%)
+===================================================================================================================

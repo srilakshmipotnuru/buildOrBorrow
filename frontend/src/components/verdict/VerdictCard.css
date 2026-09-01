@@ -1,0 +1,231 @@
+.verdict-card {
+  position: relative;
+  overflow: hidden;
+}
+
+/* Color Variant Styling */
+.verdict-borrow {
+  border-left: 6px solid #10b981;
+  background: linear-gradient(180deg, #ecfdf5 0%, #ffffff 100%);
+}
+
+.verdict-migrate {
+  border-left: 6px solid var(--secondary-500);
+  background: linear-gradient(180deg, var(--secondary-50) 0%, #ffffff 100%);
+}
+
+.verdict-build {
+  border-left: 6px solid var(--accent-500);
+  background: linear-gradient(180deg, var(--accent-50) 0%, #ffffff 100%);
+}
+
+/* Header & Badges */
+.verdict-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 1.25rem;
+  flex-wrap: wrap;
+  gap: 1rem;
+}
+
+.verdict-badge-row {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  flex-wrap: wrap;
+}
+
+.verdict-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.5rem 1rem;
+  border-radius: 9999px;
+  font-weight: 800;
+  font-size: 0.95rem;
+  letter-spacing: 0.05em;
+}
+
+.verdict-borrow .verdict-pill {
+  background: #10b981;
+  color: #ffffff;
+}
+
+.verdict-migrate .verdict-pill {
+  background: var(--secondary-600);
+  color: #ffffff;
+}
+
+.verdict-build .verdict-pill {
+  background: var(--accent-600);
+  color: #ffffff;
+}
+
+.verdict-icon {
+  width: 20px;
+  height: 20px;
+}
+
+/* Confidence Pill */
+.confidence-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  padding: 0.45rem 0.9rem;
+  border-radius: 9999px;
+  background: rgba(0, 0, 0, 0.05);
+  font-size: 0.875rem;
+  font-weight: 600;
+  color: var(--text-800);
+}
+
+.conf-icon {
+  width: 16px;
+  height: 16px;
+  color: var(--primary-600);
+}
+
+.info-toggle-btn {
+  background: none;
+  border: none;
+  padding: 0;
+  margin-left: 0.2rem;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  color: var(--text-500);
+  transition: color 0.15s ease;
+}
+
+.info-toggle-btn:hover {
+  color: var(--primary-700);
+}
+
+.info-icon {
+  width: 16px;
+  height: 16px;
+}
+
+/* Copy Button */
+.copy-md-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.45rem;
+  padding: 0.5rem 1rem;
+  border-radius: 8px;
+  border: 1px solid var(--background-300);
+  background: var(--surface);
+  color: var(--text-800);
+  font-size: 0.875rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.copy-md-btn:hover {
+  background: var(--background-50);
+  border-color: var(--primary-400);
+  color: var(--primary-800);
+}
+
+.copy-icon {
+  width: 16px;
+  height: 16px;
+}
+
+/* Body Content */
+.verdict-title {
+  font-size: 1.5rem;
+  font-weight: 800;
+  margin: 0 0 0.35rem 0;
+  color: var(--text-950);
+}
+
+.verdict-subtitle {
+  font-size: 0.975rem;
+  color: var(--text-600);
+  margin: 0 0 1.25rem 0;
+}
+
+/* Specific Action Boxes */
+.migrate-recommendation-box {
+  padding: 0.9rem 1.1rem;
+  border-radius: 10px;
+  background: var(--secondary-100);
+  border: 1px solid var(--secondary-200);
+  color: var(--secondary-900);
+  font-size: 0.95rem;
+  margin-bottom: 1.25rem;
+}
+
+.alt-code {
+  background: var(--secondary-200);
+  padding: 2px 6px;
+  border-radius: 4px;
+  font-weight: 700;
+}
+
+.build-effort-box {
+  padding: 0.9rem 1.1rem;
+  border-radius: 10px;
+  background: var(--accent-100);
+  border: 1px solid var(--accent-200);
+  color: var(--accent-900);
+  font-size: 0.95rem;
+  margin-bottom: 1.25rem;
+}
+
+/* Reasoning Section */
+.verdict-reasoning h3 {
+  font-size: 1.05rem;
+  font-weight: 700;
+  color: var(--text-900);
+  margin: 0 0 0.6rem 0;
+}
+
+.verdict-reasoning ul {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.verdict-reasoning li {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.5rem;
+  font-size: 0.935rem;
+  color: var(--text-800);
+  line-height: 1.45;
+}
+
+.bullet-point {
+  color: var(--primary-500);
+  font-weight: 800;
+}
+
+/* Confidence Breakdown Box */
+.confidence-factors-box {
+  margin-top: 1.25rem;
+  padding: 1rem 1.2rem;
+  border-radius: 10px;
+  background: var(--background-50);
+  border: 1px dashed var(--background-300);
+}
+
+.confidence-factors-box h4 {
+  font-size: 0.9rem;
+  font-weight: 700;
+  margin: 0 0 0.5rem 0;
+  color: var(--text-800);
+}
+
+.confidence-factors-box ul {
+  margin: 0;
+  padding-left: 1.2rem;
+  font-size: 0.85rem;
+  color: var(--text-700);
+}

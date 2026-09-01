@@ -1,111 +1,190 @@
 :root {
-  --text: #6b6375;
-  --text-h: #08060d;
-  --bg: #fff;
-  --border: #e5e4e7;
-  --code-bg: #f4f3ec;
-  --accent: #aa3bff;
-  --accent-bg: rgba(170, 59, 255, 0.1);
-  --accent-border: rgba(170, 59, 255, 0.5);
-  --social-bg: rgba(244, 243, 236, 0.5);
-  --shadow:
-    rgba(0, 0, 0, 0.1) 0 10px 15px -3px, rgba(0, 0, 0, 0.05) 0 4px 6px -2px;
+  /* Core Base Colors */
+  --text: #05080b;
+  --background: #fbfcfd;
+  --primary: #5a7bb0;
+  --secondary: #cf9b9b;
+  --accent: #c2b780;
 
-  --sans: system-ui, 'Segoe UI', Roboto, sans-serif;
-  --heading: system-ui, 'Segoe UI', Roboto, sans-serif;
+  /* Gradient Tokens */
+  --linearPrimarySecondary: linear-gradient(135deg, #5a7bb0, #cf9b9b);
+  --linearPrimaryAccent: linear-gradient(135deg, #5a7bb0, #c2b780);
+  --linearSecondaryAccent: linear-gradient(135deg, #cf9b9b, #c2b780);
+  --radialPrimarySecondary: radial-gradient(circle, #5a7bb0, #cf9b9b);
+  --radialPrimaryAccent: radial-gradient(circle, #5a7bb0, #c2b780);
+  --radialSecondaryAccent: radial-gradient(circle, #cf9b9b, #c2b780);
+
+  /* Text Shades (50-950) */
+  --text-50: #edf2f7;
+  --text-100: #dce6ef;
+  --text-200: #b9ccdf;
+  --text-300: #95b2d0;
+  --text-400: #7299c0;
+  --text-500: #4f7fb0;
+  --text-600: #3f668d;
+  --text-700: #2f4c6a;
+  --text-800: #203346;
+  --text-900: #101923;
+  --text-950: #080d12;
+
+  /* Background Shades (50-950) */
+  --background-50: #eef2f6;
+  --background-100: #dde6ee;
+  --background-200: #bbccdd;
+  --background-300: #99b2cc;
+  --background-400: #7799bb;
+  --background-500: #557faa;
+  --background-600: #446688;
+  --background-700: #334c66;
+  --background-800: #223344;
+  --background-900: #111922;
+  --background-950: #090d11;
+
+  /* Primary Shades (50-950) */
+  --primary-50: #eef1f7;
+  --primary-100: #dde3ee;
+  --primary-200: #bac8de;
+  --primary-300: #98accd;
+  --primary-400: #7591bd;
+  --primary-500: #5375ac;
+  --primary-600: #425e8a;
+  --primary-700: #324667;
+  --primary-800: #212f45;
+  --primary-900: #111722;
+  --primary-950: #080c11;
+
+  /* Secondary Shades (50-950) */
+  --secondary-50: #f7eeee;
+  --secondary-100: #eedddd;
+  --secondary-200: #debaba;
+  --secondary-300: #cd9898;
+  --secondary-400: #bd7575;
+  --secondary-500: #ac5353;
+  --secondary-600: #8a4242;
+  --secondary-700: #673232;
+  --secondary-800: #452121;
+  --secondary-900: #221111;
+  --secondary-950: #110808;
+
+  /* Accent Shades (50-950) */
+  --accent-50: #f7f5ee;
+  --accent-100: #eeebdd;
+  --accent-200: #ded8ba;
+  --accent-300: #cdc498;
+  --accent-400: #bdb175;
+  --accent-500: #ac9d53;
+  --accent-600: #8a7e42;
+  --accent-700: #675e32;
+  --accent-800: #453f21;
+  --accent-900: #221f11;
+  --accent-950: #111008;
+
+  /* Surface & UI Elevation Tokens */
+  --surface: #ffffff;
+  --surface-border: var(--background-200);
+  --text-muted: var(--text-600);
+  --card-bg: rgba(255, 255, 255, 0.9);
+  --shadow-sm: 0 1px 3px rgba(0, 0, 0, 0.05);
+  --shadow-md: 0 4px 12px rgba(5, 8, 11, 0.08);
+
+  /* Typography */
+  --sans: system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
   --mono: ui-monospace, Consolas, monospace;
 
-  font: 18px/145% var(--sans);
-  letter-spacing: 0.18px;
-  color-scheme: light dark;
+  font-family: var(--sans);
   color: var(--text);
-  background: var(--bg);
+  background-color: var(--background);
   font-synthesis: none;
   text-rendering: optimizeLegibility;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
-
-  @media (max-width: 1024px) {
-    font-size: 16px;
-  }
-}
-
-@media (prefers-color-scheme: dark) {
-  :root {
-    --text: #9ca3af;
-    --text-h: #f3f4f6;
-    --bg: #16171d;
-    --border: #2e303a;
-    --code-bg: #1f2028;
-    --accent: #c084fc;
-    --accent-bg: rgba(192, 132, 252, 0.15);
-    --accent-border: rgba(192, 132, 252, 0.5);
-    --social-bg: rgba(47, 48, 58, 0.5);
-    --shadow:
-      rgba(0, 0, 0, 0.4) 0 10px 15px -3px, rgba(0, 0, 0, 0.25) 0 4px 6px -2px;
-  }
-
-  #social .button-icon {
-    filter: invert(1) brightness(2);
-  }
-}
-
-#root {
-  width: 1126px;
-  max-width: 100%;
-  margin: 0 auto;
-  text-align: center;
-  border-inline: 1px solid var(--border);
-  min-height: 100svh;
-  display: flex;
-  flex-direction: column;
-  box-sizing: border-box;
 }
 
 body {
   margin: 0;
+  padding: 0;
+  background-color: var(--background);
+  color: var(--text);
 }
 
-h1,
-h2 {
-  font-family: var(--heading);
-  font-weight: 500;
-  color: var(--text-h);
+/* ==========================================================================
+   REUSABLE DESIGN SYSTEM UTILITY PRIMITIVES
+   ========================================================================== */
+
+/* Standard UI Surface Card */
+.ui-card {
+  background: var(--surface);
+  border: 1px solid var(--surface-border);
+  border-radius: 16px;
+  padding: 1.5rem;
+  box-shadow: var(--shadow-md);
+  margin-bottom: 1.5rem;
+  transition: border-color 0.2s ease, box-shadow 0.2s ease;
 }
 
-h1 {
-  font-size: 56px;
-  letter-spacing: -1.68px;
-  margin: 32px 0;
-  @media (max-width: 1024px) {
-    font-size: 36px;
-    margin: 20px 0;
-  }
-}
-h2 {
-  font-size: 24px;
-  line-height: 118%;
-  letter-spacing: -0.24px;
-  margin: 0 0 8px;
-  @media (max-width: 1024px) {
-    font-size: 20px;
-  }
-}
-p {
-  margin: 0;
+.ui-card:hover {
+  border-color: var(--primary-200);
 }
 
-code,
-.counter {
-  font-family: var(--mono);
+/* Reusable Status Badge Pills */
+.ui-badge {
   display: inline-flex;
-  border-radius: 4px;
-  color: var(--text-h);
+  align-items: center;
+  gap: 0.35rem;
+  padding: 0.3rem 0.75rem;
+  border-radius: 20px;
+  font-size: 0.8rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
 }
 
-code {
-  font-size: 15px;
-  line-height: 135%;
-  padding: 4px 8px;
-  background: var(--code-bg);
+.ui-badge-borrow {
+  background: #ecfdf5;
+  color: #047857;
+  border: 1px solid #a7f3d0;
 }
+
+.ui-badge-migrate {
+  background: var(--secondary-50);
+  color: var(--secondary-800);
+  border: 1px solid var(--secondary-200);
+}
+
+.ui-badge-build {
+  background: var(--primary-50);
+  color: var(--primary-800);
+  border: 1px solid var(--primary-200);
+}
+
+.ui-badge-accent {
+  background: var(--accent-50);
+  color: var(--accent-800);
+  border: 1px solid var(--accent-200);
+}
+
+/* Reusable Action Icon Button */
+.ui-action-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.4rem;
+  padding: 0.45rem 0.85rem;
+  border-radius: 8px;
+  border: 1px solid var(--background-200);
+  background: var(--background-50);
+  color: var(--text-600);
+  font-size: 0.825rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  flex-shrink: 0;
+  white-space: nowrap;
+}
+
+.ui-action-btn:hover:not(:disabled) {
+  background: var(--primary-50);
+  border-color: var(--primary-200);
+  color: var(--primary-800);
+}
+
