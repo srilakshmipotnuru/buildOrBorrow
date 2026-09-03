@@ -143,14 +143,40 @@ When the latest release version of a healthy package (e.g. `v2.4.0`) contains a 
 
 ---
 
-## 8. 🤖 Replace Hardcoded Static Package Lists with Dynamic LLM Classification
+## 8. 🤖 Eliminate Hardcoded AI Interceptors & Replace Static Lists with Dynamic LLM Classification
 
 ### **Problem Statement:**
-Currently, [`verdict.py`](file:///d:/Downloads/patchamomma/buildOrBorrow/backend/app/agents/verdict.py#L98-L135) contains static Python arrays (`deprecated_map` and `micro_utils`). Hardcoding package names in backend code limits the system to packages explicitly typed into the codebase.
+1. **Active AI Interceptor in `verdict.py` (Line 235)**:
+   ```python
+   if not api_key or pkg_lower in deprecated_map or pkg_lower in micro_utils:
+       return _rule_based_verdict_fallback()
+   ```
+   Whenever one of the 27 hardcoded packages is evaluated, it **bypasses Gemini completely**, returning static pre-baked strings and skipping real architectural reasoning.
+2. **Active AI Interceptor in `diagnosis.py` (Line 118)**:
+   ```python
+   if not api_key or is_readme_deprecated or pkg_lower in known_deprecated:
+       return _rule_based_fallback()
+   ```
+   Similarly intercepts the Diagnosis Agent for 14 hardcoded package names and blind README substring matches.
+3. **Naive Substring Keyword Matching in `verdict.py` (Line 136)**:
+   ```python
+   if any(w in user_requirement.lower() for w in ["clamp", "repeat", "null or undefined", "uppercase", "left pad", "is number", "slugify", "flatten", "escape string"]):
+       return VerdictResponse(decision="BUILD", ...)
+   ```
+   Forces a `BUILD` verdict based on a single word match in the prompt (e.g. *"pipe clamp monitoring dashboard"*), completely blind to actual task complexity.
+4. **Blind README Substring Trigger in `github_issues.py` (Lines 148–152)**:
+   Checks if words like `"deprecated"`, `"renamed to"`, or `"unmaintained"` appear anywhere in the first 2500 characters of the README. If a healthy package states *"We removed a deprecated v1 function"*, it mistakenly marks the entire package as abandoned.
+5. **Arbitrary +40 Star-Inflation Hack in `forecasting.py` (Lines 103–106)**:
+   ```python
+   if total_all_events >= 200 or total_stars >= 50:
+       health_score = round(min(100.0, max(75.0, raw_health_score + 40.0)), 2)
+   ```
+   Artificially inflates health scores by +40 points based on vanity stars instead of calculating true mathematical velocity.
 
 ### **Proposed Enhancement:**
-- Remove hardcoded static arrays from backend Python files.
-- Prompt Gemini 3.6 Flash in the **Verdict Agent** to dynamically classify packages as **micro-utilities** (under 25 LOC) or **deprecated/superseded packages** across **any ecosystem** (NPM, PyPI, Cargo, Go, Maven) based on code footprint, package metadata, and ecosystem context.
+- **Remove all pre-call interceptors**: Ensure Gemini is called on 100% of requests; fallback logic should only execute inside `except Exception:` error handlers.
+- **Dynamic Contextual Evaluation**: Pass the README snippet and repository context directly to Gemini so it dynamically classifies deprecation, micro-utilities (< 25 LOC), and bedrock stability across any ecosystem without hardcoded dictionaries.
+- **Objective Mathematical Velocity**: Remove artificial +40 star-inflation; let the time-series model reflect true momentum and let Gemini determine bedrock status.
 
 ---
 
