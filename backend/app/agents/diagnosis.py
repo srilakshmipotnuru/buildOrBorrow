@@ -45,38 +45,18 @@ def diagnose_package(
         pkg_lower = package_name.lower().strip()
         is_readme_deprecated = readme_info.get("is_deprecated_in_readme", False)
 
-        # 1. Deprecation & Replacement Check (README deprecation signal or known deprecated)
-        known_deprecated = [
-            "passlib", "node-uuid", "rustc-serialize", "mysql-python", "pep8", "requests-async",
-            "nomurl", "urllib3-legacy", "mock", "pycrypto", "nose", "moment", "bower", "request"
-        ]
-        if is_readme_deprecated or pkg_lower in known_deprecated:
+        # 1. Deprecation & Replacement Check (README deprecation signal)
+        if is_readme_deprecated:
             return DiagnosisResponse(
                 status="ABANDONED_STRUGGLING",
                 is_abandoned=True,
                 confidence_score=0.95,
                 confidence_reason="Package is officially deprecated/renamed in README header or ecosystem registry.",
                 bug_severity_assessment="Project is unmaintained / deprecated.",
-                explanation=f"Fallback diagnosis identified '{package_name}' as deprecated from README/registry notices."
+                explanation=f"Fallback diagnosis identified '{package_name}' as deprecated from README notices."
             )
 
-        # 2. Micro-Utility / Trivial Code Check (clamp, repeat-string, is-nil, upper-case, etc.)
-        known_micro_utils = [
-            "clamp", "repeat-string", "is-nil", "upper-case", "lower-case",
-            "left-pad", "is-number", "is-even", "is-odd", "slugify",
-            "arr-flatten", "escape-string-regexp", "is-whitespace"
-        ]
-        if pkg_lower in known_micro_utils:
-            return DiagnosisResponse(
-                status="MATURE_STABLE",
-                is_abandoned=False,
-                confidence_score=0.90,
-                confidence_reason="Identified as a micro-utility / single-purpose helper function.",
-                bug_severity_assessment="Low risk single-function utility.",
-                explanation=f"'{package_name}' is a feature-complete micro-utility suitable for zero-dependency in-house implementation."
-            )
-
-        # 3. Critical Security Check
+        # 2. Critical Security Check
         if crit_cve > 0 or cve_count >= 3:
             return DiagnosisResponse(
                 status="VULNERABLE",
@@ -87,7 +67,7 @@ def diagnose_package(
                 explanation=f"Package '{package_name}' has unresolved security advisories."
             )
 
-        # 4. "Finished Software" vs. "Dead Software" Check
+        # 3. "Finished Software" vs. "Dead Software" Check
         if health_score >= 60 or verdict_signal == "HEALTHY_ACTIVE":
             status_val = "MAINTAINED_ACTIVE"
             is_ab = False
@@ -108,14 +88,9 @@ def diagnose_package(
         )
 
     api_key = settings.GEMINI_API_KEY
-    pkg_lower = package_name.lower().strip()
     is_readme_deprecated = readme_info.get("is_deprecated_in_readme", False)
-    known_deprecated = [
-        "passlib", "node-uuid", "rustc-serialize", "mysql-python", "pep8", "requests-async",
-        "nomurl", "urllib3-legacy", "mock", "pycrypto", "nose", "moment", "bower", "request"
-    ]
 
-    if not api_key or is_readme_deprecated or pkg_lower in known_deprecated:
+    if not api_key or is_readme_deprecated:
         return _rule_based_fallback()
 
     formatted_issue_list = "\n".join([
