@@ -171,11 +171,13 @@ When the latest release version of a healthy package (e.g. `v2.4.0`) contains a 
    if total_all_events >= 200 or total_stars >= 50:
        health_score = round(min(100.0, max(75.0, raw_health_score + 40.0)), 2)
    ```
-   Artificially inflates health scores by +40 points based on vanity stars instead of calculating true mathematical velocity.
+6. **Lack of Domain Relevance / Purpose Alignment Guard in Package Mode**:
+   Currently, in Package Mode, the Verdict Agent only checks whether `user_requirement` can be built in $< 25$ LOC vs $> 25$ LOC. It does **not** evaluate whether the package belongs to the domain of the requirement! For example, when evaluating `manim` with `caching needed`, because Manim is healthy and caching is non-trivial, it outputs `BORROW`, ignoring that importing a 500MB video animation engine for general caching is absurd overkill.
 
 ### **Proposed Enhancement:**
 - **Remove all pre-call interceptors**: Ensure Gemini is called on 100% of requests; fallback logic should only execute inside `except Exception:` error handlers.
 - **Dynamic Contextual Evaluation**: Pass the README snippet and repository context directly to Gemini so it dynamically classifies deprecation, micro-utilities (< 25 LOC), and bedrock stability across any ecosystem without hardcoded dictionaries.
+- **Domain Relevance & Anti-Overkill Rule (Package Mode)**: Instruct Gemini to verify purpose alignment. If the target package's primary purpose has zero relation to the requirement (e.g. video rendering library for web caching), forbid `BORROW`, flag the domain mismatch, and recommend standard library alternatives (`@functools.lru_cache`) or purpose-built packages (`cachetools`).
 - **Objective Mathematical Velocity**: Remove artificial +40 star-inflation; let the time-series model reflect true momentum and let Gemini determine bedrock status.
 
 ---
@@ -208,29 +210,33 @@ When a user asks for a trivial helper (e.g. *"left pad a string"*, *"slugify tex
 
 ---
 
-## 11. 🚀 Bypass Diagnosis Agent & Pass Direct Input to Verdict Agent when `github_url == null`
-
-### **Architectural Insight:**
-When a package has `github_url == null` (or resolution fails/package does not exist), GH Archive and GitHub API queries are already safely bypassed (`raw_weekly_data = []`, `recent_issues = []`). No GitHub API calls or BigQuery bytes are wasted.
+## 11. 🚀 Eliminate Ghost Scores & Task Scale Guard When `github_url == null` / Candidates Unverified
 
 ### **Problem Statement:**
-Currently, when `github_url == null`, the forecasting engine returns default fallback scores (`health_score: 75`). The pipeline passes these dummy numbers to the **Diagnosis Agent**, causing it to hallucinate that non-existent packages (e.g. `add2ints`) are *"mature, stable packages with a 75 health score"*, which directly contradicts the **Verdict Agent**!
-
-### **Proposed Architectural Flow:**
-When `github_url == null` or requirement is a native language capability / micro-task:
-1. **Bypass Diagnosis Agent**: Skip calling the Diagnosis Agent entirely (do not generate fake health diagnoses for non-existent libraries).
-2. **Direct Verdict Payload**: Pass a clean, explicit context payload directly to the **Verdict Agent**:
-   ```json
-   {
-     "package_exists": false,
-     "github_url": null,
-     "user_requirement": "add 2 integers",
-     "is_native_capability": true
+1. **The Ghost 75 Score**:
+   Currently, when `github_url == null` (or package resolution fails), lines 147–153 of `evaluate.py` inject a fake fallback:
+   ```python
+   forecast_results = {
+       "health_score": 75.0,
+       "projected_total_events_90d": 120,
+       "maintenance_verdict_signal": "HEALTHY_ACTIVE"
    }
    ```
-3. **Clean Verdict & Builder Execution**:
-   - **Verdict Agent** immediately outputs **`BUILD`**: *"The requirement 'add 2 integers' is a native language operation. Third-party packages are unnecessary."*
-   - **Builder Agent** generates `return a + b` in **< 300ms** with **0 agent contradictions**!
+   This deceives the **Diagnosis Agent** and **Verdict Agent** into hallucinating that non-existent or unverified packages (e.g. `github.com/patrickmn/go-cache` when aborted) are *"mature, stable packages with a 75 health score"*, issuing false `BORROW` verdicts!
+2. **Unverified Candidate Fallback Trap (Task Mode)**:
+   In `evaluate.py` line 356, when **ALL 3** suggested candidates fail verification, the code falls back to `primary_cand = candidate_list[0]` and tags it as *"Selected for Deep Analysis"*, evaluating an unverified package.
+
+### **Proposed Architectural Flow:**
+1. **Eliminate Ghost 75 Score**:
+   When `github_url == null`, set `health_score = 0.0` (or `None`), `projected_events = 0`, and `maintenance_verdict_signal = "UNAVAILABLE"`. Do not feed fake telemetry to Gemini.
+2. **Task Scale Guard When Candidates are Unverified**:
+   If `len(verified_candidates) == 0`:
+   - Do **NOT** run deep analysis on candidate #1.
+   - Show all 3 cards with the red **`Unverified in registry`** tag.
+   - **Distinguish Task Scale**:
+     - **Micro-Tasks (< 25 LOC, e.g. "is even", "pad string")**: Issue **`BUILD`** and generate the clean in-house code replacement.
+     - **Large / Complex Tasks (e.g. "distributed consensus cluster", "speech recognition transformer")**: Do **NOT** blindly issue `BUILD`! A developer cannot build a speech recognition model or distributed cluster in 20 lines. Instead, output an honest **`UNVERIFIED_CANDIDATES`** notice:  
+       *`"Could not verify candidate packages in the {system} registry for this requirement. Because this task requires significant architectural complexity, building a custom implementation from scratch is non-trivial. Please verify registry connection or evaluate by exact package name."`*
 
 ---
 
@@ -301,3 +307,15 @@ While raw data platforms like **Google deps.dev**, **OpenSSF Scorecards** (`api.
 2. **OpenSSF Scorecard REST API & BigQuery Dataset** (`api.securityscorecards.dev` / `openssf:scorecardcron.scorecard-v2`): Extracts official ground-truth maintainer & security scores (0-10) for 1M+ GitHub repositories across ALL languages.
 3. **`ecosyste.ms` API**: Cross-ecosystem dependency graph metadata across 15+ package registries.
 4. **Linux Foundation CHAOSS Metrics**: 80+ standardized open-source sustainability & health metrics.
+
+---
+
+## 🔮 Post-MVP Enhancements
+
+### 16. 🐣 "INCUBATING_NEW" Guard for Brand New Packages (< 6 Weeks Old)
+- **Problem**: When a package was published only 1 to 3 weeks ago, running BigQuery ML ARIMA on 2 or 3 data points produces volatile, statistically unreliable trend slopes.
+- **Proposed Enhancement**: If a package has $< 6$ historical weeks of data in the warehouse, bypass ARIMA model fitting, tag the package status as **`INCUBATING_NEW`**, and warn the developer: *"Package was published recently (< 6 weeks old). Long-term maintenance trajectory cannot be determined yet; evaluate early-stage adoption risks."*
+
+### 17. 🐙 Monorepo Parent Repository Context Notice
+- **Problem**: Packages like `@babel/parser` or `google-cloud-storage` link to large parent monorepos (`babel/babel` and `google-cloud-python`).
+- **Proposed Enhancement**: When a package maps to a known multi-package monorepo, display an informative context chip: *"Repository Telemetry reflects parent monorepo: babel/babel"* so developers understand that commit velocity represents the collective project suite.
