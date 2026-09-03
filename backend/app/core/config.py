@@ -28,7 +28,7 @@ class Settings(BaseSettings):
 
     # BigQuery Query Byte Limits (Applied ONLY when ENABLE_BIGQUERY_BYTE_LIMITS is True)
     BQ_DEFAULT_MAX_ALLOWED_MB: float = 500.0        # Default fallback limit for general metadata queries
-    BQ_DEPS_DEV_MAX_ALLOWED_MB: float = 2500.0      # Hard cap for deps.dev package resolution, advisories & dependencies queries
+    BQ_DEPS_DEV_MAX_ALLOWED_MB: float = 4000.0      # Hard cap for deps.dev package resolution, advisories & dependencies queries (supports Go & multi-package queries)
     BQ_GH_ARCHIVE_MAX_ALLOWED_MB: float = 20000.0   # Hard cap for multi-week GH Archive activity scans & ARIMA ML forecast (~16 GB)
 
     # =========================================================================
