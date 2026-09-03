@@ -177,6 +177,8 @@ When the latest release version of a healthy package (e.g. `v2.4.0`) contains a 
 ### **Proposed Enhancement:**
 - **Remove all pre-call interceptors**: Ensure Gemini is called on 100% of requests; fallback logic should only execute inside `except Exception:` error handlers.
 - **Dynamic Contextual Evaluation**: Pass the README snippet and repository context directly to Gemini so it dynamically classifies deprecation, micro-utilities (< 25 LOC), and bedrock stability across any ecosystem without hardcoded dictionaries.
+- **System Instruction Separation (`system_instruction`)**: Move system persona and behavioral directives out of the raw user prompt string and pass them into `types.GenerateContentConfig(system_instruction=...)` across all agents (`verdict.py`, `diagnosis.py`, `builder.py`, `candidate_finder.py`) per Google GenAI SDK standards.
+- **Structured Delimiters (XML Tags)**: Wrap prompt sections in clear XML-style delimiters (`<context>`, `<evidence>`, `<decision_rules>`) to prevent context confusion and protect against prompt injection from user inputs.
 - **Domain Relevance & Anti-Overkill Rule (Package Mode)**: Instruct Gemini to verify purpose alignment. If the target package's primary purpose has zero relation to the requirement (e.g. video rendering library for web caching), forbid `BORROW`, flag the domain mismatch, and recommend standard library alternatives (`@functools.lru_cache`) or purpose-built packages (`cachetools`).
 - **Objective Mathematical Velocity**: Remove artificial +40 star-inflation; let the time-series model reflect true momentum and let Gemini determine bedrock status.
 
