@@ -41,11 +41,11 @@ def call_gemini_with_retry(
     from google.genai import types
 
     primary_model = settings.GEMINI_MODEL_NAME
-    fallback_1 = getattr(settings, "FALLBACK_GEMINI_MODEL_NAME", "gemini-3.5-flash-lite")
-    fallback_2 = "gemini-3.5-flash"
+    backup_1 = getattr(settings, "FALLBACK_GEMINI_MODEL_1", "gemini-3.6-flash")
+    backup_2 = getattr(settings, "FALLBACK_GEMINI_MODEL_2", "gemini-3.1-flash-lite")
 
-    # Cascade order: Primary model -> Fallback Lite -> Fallback 3.5 Flash
-    models_to_try = [primary_model, fallback_1, fallback_2][:max_retries]
+    # Triple-tier Cascade: Primary (3.5-flash-lite) -> Backup 1 (3.6-flash) -> Backup 2 (3.1-flash-lite)
+    models_to_try = [primary_model, backup_1, backup_2][:max_retries]
 
     last_exception = None
 
