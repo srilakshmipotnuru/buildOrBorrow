@@ -4,7 +4,11 @@ This document outlines key technical follow-ups and architectural enhancements i
 
 ---
 
-## 1. ⚡ GH Archive Zero-Activity Pre-Check Before Running ARIMA Model
+## 1. ⚡ GH Archive Zero-Activity Pre-Check Before Running ARIMA Model [DONE ✅]
+
+> [!NOTE]
+> **Implementation Summary (Completed):**
+> Implemented in [`backend/app/api/endpoints/evaluate.py`](file:///d:/Downloads/patchamomma/buildOrBorrow/backend/app/api/endpoints/evaluate.py) and [`backend/app/api/endpoints/forecast.py`](file:///d:/Downloads/patchamomma/buildOrBorrow/backend/app/api/endpoints/forecast.py). Before invoking BigQuery ML `ARIMA_PLUS`, the pipeline checks if `sum(total_events) == 0`. If dormant/stagnant, it immediately sets `health_score = 0.0`, `trend_direction = 'DECLINING'`, and `maintenance_verdict_signal = 'AT_RISK_STAGNANT'`, completely bypassing ML model fitting and eliminating unnecessary training costs and warnings.
 
 ### **Problem Statement:**
 Currently, when a repository has 0 commits or 0 developer events across the historical lookback window (e.g. 104 weeks), the pipeline still attempts to fit Statsmodels / BigQuery ML ARIMA forecasting models. Running time-series models on zero-variance or empty arrays wastes CPU execution time, incurs unnecessary BigQuery ML query costs, and produces convergence warnings.
@@ -32,7 +36,11 @@ GitHub allows repository owners to mark a repository as officially **Archived** 
 
 ---
 
-## 3. 🔍 GH Archive Event Tracking Audit & Weighting Analysis
+## 3. 🔍 GH Archive Event Tracking Audit & Weighting Analysis [DONE ✅]
+
+> [!NOTE]
+> **Implementation Summary (Completed):**
+> Extended event tracking schema in [`models/gh_archive.py`](file:///d:/Downloads/patchamomma/buildOrBorrow/backend/app/models/gh_archive.py) and queries in [`queries/gh_archive.py`](file:///d:/Downloads/patchamomma/buildOrBorrow/backend/app/queries/gh_archive.py). Included `create_events` (tags/releases, weight 3.0), `comment_events` (triage discussions, weight 1.0), and composite `weighted_activity`. Excluded automated bots (`actor.login NOT LIKE '%[bot]'`), and fully baked these aggregated metrics into the warehouse table `build_or_borrow_dw.github_weekly_activity`.
 
 ### **Current Event Query Audit ([`gh_archive.py`](file:///d:/Downloads/patchamomma/buildOrBorrow/backend/app/queries/gh_archive.py)):**
 The BigQuery query currently scans the following event types:
@@ -73,7 +81,11 @@ WHERE type IN ('PushEvent', 'PullRequestEvent', 'IssuesEvent', 'WatchEvent')
 
 ---
 
-## 4. 📅 Direct 104-Week Lookback Horizon (No Custom Dataset / No Batch Jobs Needed)
+## 4. 📅 Direct 104-Week Lookback Horizon (Custom Dataset Integration) [DONE ✅]
+
+> [!NOTE]
+> **Implementation Summary (Completed):**
+> Configured `DEFAULT_LOOKBACK_WEEKS = 104` in [`config.py`](file:///d:/Downloads/patchamomma/buildOrBorrow/backend/app/core/config.py) and connected backend directly to `project-bbc67fb6-4e57-4565-bb5.build_or_borrow_dw.github_weekly_activity` (17.3M rows, August 2024 to August 2026). Removed in-memory Python caching for stateless execution and implemented 0-byte inline UNNEST BigQuery ML `ARIMA_PLUS` training and inference.
 
 ### **Rationale:**
 - **Why 104 Weeks (2 Years) is Required**: Short lookback windows (e.g. 5–12 weeks) fail for stable, mature packages (like `tone.js` or `feedparser`) where recent 3-month activity happens to be 0. A short lookback returns 0 events and causes the forecasting engine to output 0 activity.
@@ -142,7 +154,11 @@ Currently, [`verdict.py`](file:///d:/Downloads/patchamomma/buildOrBorrow/backend
 
 ---
 
-## 9. 📊 BigQuery SQL Query Optimization Strategy (Derived via `/bigquery-sql` Skill Audit)
+## 9. 📊 BigQuery SQL Query Optimization Strategy (Derived via `/bigquery-sql` Skill Audit) [DONE ✅]
+
+> [!NOTE]
+> **Implementation Summary (Completed):**
+> Applied `/bigquery-sql` optimization techniques across [`queries/gh_archive.py`](file:///d:/Downloads/patchamomma/buildOrBorrow/backend/app/queries/gh_archive.py) and [`queries/deps_dev.py`](file:///d:/Downloads/patchamomma/buildOrBorrow/backend/app/queries/deps_dev.py). Pruned unnecessary columns, leveraged clustering index keys on `repo_name`, and eliminated the 7.8 GB multi-iteration `CREATE MODEL` scan cost by passing the in-memory 104 historical weeks directly as an inline parameter array into `CREATE OR REPLACE MODEL ... FROM UNNEST(@history)` (0 bytes billed for model fitting!).
 
 ### **Audit Analysis (Using `/bigquery-sql` Skill Rules):**
 1. **Column Pruning in `deps_dev.py`**: Prune unused `Version` column from `target_project` CTE in `query_package_resolution()`.
@@ -192,7 +208,11 @@ When `github_url == null` or requirement is a native language capability / micro
 
 ---
 
-## 12. 🧰 Antigravity Automated Audit Toolkit Integration
+## 12. 🧰 Antigravity Automated Audit Toolkit Integration [DONE ✅]
+
+> [!NOTE]
+> **Implementation Summary (Completed):**
+> Integrated and executed 8 specialized Antigravity skills during implementation: `/bigquery-sql` (cost & scan tuning), `/ml-best-practices` (104-week ARIMA confidence bounds), `/accidental-data-loss-prevention` (safe dataset and table modifications), `/building-data-apps` (data architecture), `/managing-python-dependencies` (isolated venv command executions), `/discovering-gcp-data-assets` (dataset inspection), `/enforcing-resource-attribution` (project budgeting), and `/gcloud-auth-verification` (ADC and service credentials).
 
 ### **Available Specialized Audit Workflows:**
 1. **`/ml-best-practices` (Machine Learning & Forecasting Audit)**:
@@ -210,7 +230,11 @@ When `github_url == null` or requirement is a native language capability / micro
 
 ---
 
-## 13. 🔑 GitHub REST API Authentication Header (`GITHUB_TOKEN`)
+## 13. 🔑 GitHub REST API Authentication Header (`GITHUB_TOKEN`) [DONE ✅]
+
+> [!NOTE]
+> **Implementation Summary (Completed):**
+> Declared `GITHUB_TOKEN: Optional[str] = None` in [`config.py`](file:///d:/Downloads/patchamomma/buildOrBorrow/backend/app/core/config.py#L56) and configured [`github_issues.py`](file:///d:/Downloads/patchamomma/buildOrBorrow/backend/app/services/github_issues.py#L55-L57) to attach `Authorization: Bearer <token>` to both Search and REST API calls. If `GITHUB_TOKEN` is present in `.env`, the rate limit jumps to 5,000 requests/hour; if absent, it safely falls back to unauthenticated public access.
 
 ### **Problem Statement:**
 Currently, REST calls to the GitHub API (`api.github.com/repos/...` and `api.github.com/repos/.../issues`) in [`github_issues.py`](file:///d:/Downloads/patchamomma/buildOrBorrow/backend/app/services/github_issues.py) are sent unauthenticated.
@@ -226,7 +250,11 @@ Currently, REST calls to the GitHub API (`api.github.com/repos/...` and `api.git
 
 ---
 
-## 14. 🎯 Automated Candidate Verification Filter (`verified_exists == True`) in Candidate Finder
+## 14. 🎯 Automated Candidate Verification Filter (`verified_exists == True`) in Candidate Finder [DONE ✅]
+
+> [!NOTE]
+> **Implementation Summary (Completed):**
+> Implemented in [`backend/app/api/endpoints/evaluate.py`](file:///d:/Downloads/patchamomma/buildOrBorrow/backend/app/api/endpoints/evaluate.py#L349-L358). In Task Mode, after screening the 3 suggested candidate packages with `deps.dev`, the funnel filters `[cand for cand, screen in zip(candidate_list, screenings) if screen.verified_exists]`. Only packages verified to exist in the registry are chosen as the primary candidate for deep evaluation.
 
 ### **Problem Statement:**
 In Task Requirement Mode, the Candidate Finder LLM occasionally suggests candidate package names that do not exist on the target ecosystem registry (PyPI/NPM), returning `verified_exists: false` (e.g. `add2ints`, `mathutils-plus`, `simple-adder`).
