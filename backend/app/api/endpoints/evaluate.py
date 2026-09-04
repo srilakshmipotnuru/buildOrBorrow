@@ -3,7 +3,7 @@ from typing import Optional, List, Dict, Any, Union
 from fastapi import APIRouter, Depends, HTTPException, Query
 from pydantic import BaseModel, Field, model_validator
 
-from app.core.utils import extract_github_owner_repo
+from app.core.utils import extract_github_owner_repo, is_micro_utility_requirement
 from app.core.bigquery import get_bigquery_client
 from app.core.config import settings
 from app.models.deps_dev import PackageResolutionResponse, SecurityContextResponse
@@ -337,6 +337,93 @@ def evaluate_pipeline(request: EvaluationRequest):
     # Mode 2: Task Mode Evaluation (Option 1 Two-Stage Funnel)
     logger.info(f"Executing Task Mode Evaluation Pipeline for: '{task_input}' ({system_input})")
     
+    # Early Fast-Path Bypass for Micro-Utilities (< 25 LOC)
+    if is_micro_utility_requirement(task_input):
+        logger.info(f"⚡ [Fast-Path Bypass] Detected micro-utility task requirement (< 25 LOC): '{task_input}'. Bypassing BigQuery scans.")
+        
+        builder_res = generate_custom_build(
+            user_requirement=task_input,
+            package_name="custom-utility",
+            system=system_input
+        )
+        
+        fast_path_eval = PackageEvaluationDetail(
+            package_name="in-house-utility",
+            system=system_input,
+            github_url=None,
+            repo_owner=None,
+            repo_name=None,
+            resolution=PackageResolutionResponse(
+                name="in-house-utility",
+                system=system_input,
+                version="1.0.0",
+                project_name="in-house-utility",
+                licenses=["MIT"],
+                github_url=None,
+                published_at=None
+            ),
+            security=SecurityContextResponse(
+                critical_vulnerabilities=0,
+                high_vulnerabilities=0,
+                medium_vulnerabilities=0,
+                low_vulnerabilities=0,
+                unknown_vulnerabilities=0,
+                total_vulnerabilities=0,
+                direct_dependencies=0,
+                transitive_dependencies=0,
+                license="Zero External Dependencies",
+                is_current_version_vulnerable=False
+            ),
+            forecast=ForecastAnalysis(
+                projected_timeline=[],
+                trend_direction="STABLE",
+                health_score=100.0,
+                projected_total_events_90d=0,
+                maintenance_verdict_signal="HEALTHY_ACTIVE"
+            ),
+            recent_issues=[],
+            diagnosis=DiagnosisResponse(
+                status="MAINTAINED_ACTIVE",
+                is_abandoned=False,
+                confidence_score=1.0,
+                confidence_reason="Single-function micro-utility requirement (< 25 LOC). In-house zero-dependency code generated.",
+                bug_severity_assessment="Zero third-party open issue dependency footprint.",
+                explanation=f"Task requirement '{task_input}' is a lightweight micro-utility (under ~25 lines of code). Building in-house eliminates external supply-chain dependency bloat and vulnerability exposure."
+            ),
+            verdict=VerdictResponse(
+                decision="BUILD",
+                confidence_score=1.0,
+                confidence_level="HIGH",
+                confidence_factors=["Single-Function Micro-Utility (< 25 LOC)", "Zero Third-Party Dependency Footprint", "Bypassed BigQuery ML & Heavy Registry Queries"],
+                reasoning=[
+                    f"Feature requirement '{task_input}' is a lightweight single-function utility (< 25 lines of code).",
+                    "Building directly in-house avoids third-party dependency bloat, transitive dependencies, and supply-chain vulnerability risks.",
+                    "Zero external dependencies guarantee maximum execution performance and complete codebase control."
+                ],
+                recommended_alternative=None,
+                estimated_build_effort="~5-15 lines of code, ~5 mins"
+            ),
+            builder=builder_res
+        )
+
+        screening_item = CandidateScreeningItem(
+            name="in-house-utility",
+            system=system_input,
+            reason=f"Fast-path zero-dependency in-house replacement generated for micro-utility '{task_input}'.",
+            version="1.0.0",
+            github_url=None,
+            licenses=["MIT"],
+            verified_exists=True
+        )
+
+        return EvaluationTaskResponse(
+            mode="task",
+            task_description=task_input,
+            system=system_input,
+            primary_evaluation=fast_path_eval,
+            candidate_screenings=[screening_item]
+        )
+
     # Stage 1: Candidate Finder Agent returns 3 candidates with ecosystems
     candidates_res = find_candidate_packages(task_description=task_input, system=system_input)
     candidate_list = candidates_res.candidates

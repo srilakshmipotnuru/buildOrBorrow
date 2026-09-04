@@ -26,6 +26,42 @@ def extract_github_owner_repo(github_url: Optional[str]) -> Optional[Tuple[str, 
     return owner, repo
 
 
+MICRO_UTILITY_KEYWORDS = [
+    "left pad", "right pad", "pad string", "pad a string",
+    "is even", "is odd", "check if even", "check if odd",
+    "slugify", "make slug", "generate slug",
+    "clamp", "clamp float", "clamp number", "clamp integer",
+    "flatten array", "flatten list", "flatten nested",
+    "null or undefined", "is null", "is undefined", "check null",
+    "repeat string", "string repeat",
+    "to camelcase", "to snakecase", "to kebabcase", "uppercase string", "lowercase string",
+    "escape html", "escape string", "unescape html",
+    "reverse string", "trim string", "truncate string"
+]
+
+
+def is_micro_utility_requirement(task_description: str) -> bool:
+    """
+    Early Micro-Utility Classifier:
+    Detects if a user task description describes a single-function, trivial micro-utility
+    under ~25 lines of code (e.g., string padding, slugification, parity checks, clamping, array flattening).
+    """
+    if not task_description or not task_description.strip():
+        return False
+
+    task_lower = task_description.strip().lower()
+
+    for kw in MICRO_UTILITY_KEYWORDS:
+        if kw in task_lower:
+            return True
+
+    words = task_lower.split()
+    if len(words) <= 4 and any(w in task_lower for w in ["pad", "even", "odd", "clamp", "slug", "flatten", "trim", "reverse", "repeat", "case"]):
+        return True
+
+    return False
+
+
 def call_gemini_with_retry(
     client: Any,
     prompt: str,
