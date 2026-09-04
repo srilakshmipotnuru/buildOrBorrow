@@ -40,7 +40,7 @@ export const PipelineAccordion: React.FC<PipelineAccordionProps> = ({ evaluation
   };
 
   const { resolution, security, forecast, recent_issues, diagnosis, verdict, builder } = evaluation;
-  const isFastPath = evaluation.package_name === 'in-house-utility' || forecast?.trend_direction === 'NOT_APPLICABLE';
+  const isFastPath = forecast?.trend_direction === 'NOT_APPLICABLE' || verdict?.confidence_factors?.some((f) => f.includes('Bypassed BigQuery'));
 
   return (
     <div className="pipeline-accordion-card">

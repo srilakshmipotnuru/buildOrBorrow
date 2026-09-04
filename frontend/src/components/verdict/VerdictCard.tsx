@@ -97,7 +97,7 @@ ${verdict.confidence_factors.map((f) => `- ${f}`).join('\n')}
     setTimeout(() => setCopied(false), 2000);
   };
 
-  const isFastPath = verdict.confidence_factors?.some((f) => f.includes('Bypassed BigQuery')) || packageName === 'in-house-utility';
+  const isFastPath = verdict.confidence_factors?.some((f) => f.includes('Bypassed BigQuery'));
 
   return (
     <div className={`ui-card verdict-card ${theme.className}`}>
