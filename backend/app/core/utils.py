@@ -26,6 +26,42 @@ def extract_github_owner_repo(github_url: Optional[str]) -> Optional[Tuple[str, 
     return owner, repo
 
 
+MICRO_UTILITY_KEYWORDS = [
+    "left pad", "right pad", "pad string", "pad a string",
+    "is even", "is odd", "check if even", "check if odd",
+    "slugify", "make slug", "generate slug",
+    "clamp", "clamp float", "clamp number", "clamp integer",
+    "flatten array", "flatten list", "flatten nested",
+    "null or undefined", "is null", "is undefined", "check null",
+    "repeat string", "string repeat",
+    "to camelcase", "to snakecase", "to kebabcase", "uppercase string", "lowercase string",
+    "escape html", "escape string", "unescape html",
+    "reverse string", "trim string", "truncate string"
+]
+
+
+def is_micro_utility_requirement(task_description: str) -> bool:
+    """
+    Early Micro-Utility Classifier:
+    Detects if a user task description describes a single-function, trivial micro-utility
+    under ~25 lines of code (e.g., string padding, slugification, parity checks, clamping, array flattening).
+    """
+    if not task_description or not task_description.strip():
+        return False
+
+    task_lower = task_description.strip().lower()
+
+    for kw in MICRO_UTILITY_KEYWORDS:
+        if kw in task_lower:
+            return True
+
+    words = task_lower.split()
+    if len(words) <= 4 and any(w in task_lower for w in ["pad", "even", "odd", "clamp", "slug", "flatten", "trim", "reverse", "repeat", "case"]):
+        return True
+
+    return False
+
+
 def call_gemini_with_retry(
     client: Any,
     prompt: str,
@@ -41,11 +77,11 @@ def call_gemini_with_retry(
     from google.genai import types
 
     primary_model = settings.GEMINI_MODEL_NAME
-    fallback_1 = getattr(settings, "FALLBACK_GEMINI_MODEL_NAME", "gemini-3.5-flash-lite")
-    fallback_2 = "gemini-3.5-flash"
+    backup_1 = getattr(settings, "FALLBACK_GEMINI_MODEL_1", "gemini-3.6-flash")
+    backup_2 = getattr(settings, "FALLBACK_GEMINI_MODEL_2", "gemini-3.1-flash-lite")
 
-    # Cascade order: Primary model -> Fallback Lite -> Fallback 3.5 Flash
-    models_to_try = [primary_model, fallback_1, fallback_2][:max_retries]
+    # Triple-tier Cascade: Primary (3.5-flash-lite) -> Backup 1 (3.6-flash) -> Backup 2 (3.1-flash-lite)
+    models_to_try = [primary_model, backup_1, backup_2][:max_retries]
 
     last_exception = None
 

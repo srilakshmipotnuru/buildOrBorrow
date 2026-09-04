@@ -166,3 +166,63 @@
   width: 14px;
   height: 14px;
 }
+
+.re-evaluate-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  padding: 0.35rem 0.75rem;
+  border-radius: 6px;
+  background: var(--background-200);
+  color: var(--primary-700);
+  border: 1px solid var(--primary-300);
+  font-size: 0.775rem;
+  font-weight: 700;
+  margin-bottom: 0.75rem;
+  align-self: flex-start;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.re-evaluate-btn.cached-btn {
+  background: #ecfdf5;
+  color: #047857;
+  border-color: #a7f3d0;
+}
+
+.re-evaluate-btn.cached-btn:hover:not(:disabled) {
+  background: #10b981;
+  color: #ffffff;
+  border-color: #10b981;
+}
+
+.re-evaluate-btn:hover:not(:disabled) {
+  background: var(--primary-600);
+  color: #ffffff;
+  border-color: var(--primary-600);
+  box-shadow: var(--shadow-sm);
+}
+
+.re-evaluate-btn:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.btn-icon {
+  width: 14px;
+  height: 14px;
+}
+
+.btn-icon.spin {
+  animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+  from {
+    transform: rotate(0deg);
+  }
+  to {
+    transform: rotate(360deg);
+  }
+}
+

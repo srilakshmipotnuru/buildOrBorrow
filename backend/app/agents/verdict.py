@@ -99,16 +99,19 @@ def generate_verdict(
         crit_cve = security_context.get("critical_vulnerabilities", 0)
         pkg_lower = pkg_name.lower().strip()
 
-        # 1. Critical Security Check (MIGRATE)
-        if crit_cve > 0 or status_val == "VULNERABLE":
+        active_cve = security_context.get("active_cves_on_current_version", 0)
+        patched_cve = security_context.get("patched_historical_cves", 0)
+
+        # 1. Critical Security Check (MIGRATE ONLY IF ACTIVE CVES EXIST ON CURRENT VERSION)
+        if active_cve > 0 or status_val == "VULNERABLE":
             rec_alt = f"{pkg_name}-alternative"
             return VerdictResponse(
                 decision="MIGRATE",
                 confidence_score=0.95,
                 confidence_level="HIGH",
-                confidence_factors=["Critical Security Vulnerability", "Stagnant Patch Rate"],
+                confidence_factors=["Unpatched Security Vulnerability on Current Release", "Security Advisory Open"],
                 reasoning=[
-                    f"Package '{pkg_name}' contains unresolved critical security advisories ({crit_cve} critical).",
+                    f"Package '{pkg_name}' contains {active_cve} active, unpatched security advisories on current release.",
                     "Unpatched vulnerabilities introduce high supply-chain security risks.",
                     "Migrating to an actively maintained alternative is required."
                 ],
@@ -146,7 +149,7 @@ def generate_verdict(
             rec_alt = None
             reasoning_bullets = [
                 f"Package '{pkg_name}' is a mature, feature-complete library (health score: {health_score}/100).",
-                "Security vulnerability check passed with zero critical advisories.",
+                f"Security check passed with 0 active CVEs on current release ({patched_cve} historical CVEs fully patched).",
                 "Borrowing this package provides optimal productivity over building in-house."
             ]
         else:
@@ -196,21 +199,22 @@ def generate_verdict(
             f"- Diagnosis Explanation: {diagnosis_output.get('explanation', '')}\n"
             f"- Maintenance Health Score: {forecast_analysis.get('health_score', 50.0)} / 100.0\n"
             f"- 90-Day Trend Direction: {forecast_analysis.get('trend_direction', 'STABLE')}\n"
-            f"- Critical Vulnerabilities: {security_context.get('critical_vulnerabilities', 0)}\n"
-            f"- High Vulnerabilities: {security_context.get('high_vulnerabilities', 0)}\n"
+            f"- Active Unpatched CVEs on Current Release: {security_context.get('active_cves_on_current_version', 0)}\n"
+            f"- Historical Patched CVEs: {security_context.get('patched_historical_cves', 0)}\n"
             f"- Transitive Dependencies: {security_context.get('transitive_dependencies', 0)}\n"
             f"- License: {security_context.get('license', 'Unknown')}\n\n"
             f"DECISION RULES:\n"
-            f"1. DYNAMIC MICRO-UTILITY CLASSIFICATION (BUILD):\n"
+            f"1. HISTORICAL PATCHED CVES VS ACTIVE CVES (BORROW / MIGRATE):\n"
+            f"   - Historical patched CVEs (active_cves_on_current_version == 0) represent active security stewardship, NOT a reason to abandon a library! If current release has 0 active CVEs, permit BORROW.\n"
+            f"   - Only trigger MIGRATE for security reasons if active_cves_on_current_version > 0 (an unpatched vulnerability remains open on the current release).\n"
+            f"2. DYNAMIC MICRO-UTILITY CLASSIFICATION (BUILD):\n"
             f"   - Dynamically analyze if '{pkg_name}' or the feature requirement is a trivial micro-utility (under ~25 lines of code, single-function helper like string padding, clamping, null checks, string repetition, slugification, case conversion, or array flattening) across ANY ecosystem.\n"
             f"   - If it is a micro-utility, set decision to BUILD and set estimated_build_effort (e.g. '~5-15 lines of code, ~5 mins'). Building in-house eliminates external supply-chain dependency bloat.\n"
-            f"2. DYNAMIC DEPRECATED / SUPERSEDED / RENAMED CLASSIFICATION (MIGRATE):\n"
+            f"3. DYNAMIC DEPRECATED / SUPERSEDED / RENAMED CLASSIFICATION (MIGRATE):\n"
             f"   - Dynamically evaluate if '{pkg_name}' is officially deprecated, unmaintained, legacy, or superseded by a modern alternative library across ANY ecosystem (e.g. passlib -> argon2-cffi, pep8 -> pycodestyle, node-uuid -> uuid, requests-async -> httpx, mysql-python -> mysqlclient, rustc-serialize -> serde, pycrypto -> pycryptodome, moment -> dayjs, bower -> npm, request -> axios).\n"
             f"   - If deprecated or superseded, set decision to MIGRATE and specify the modern active replacement package in recommended_alternative.\n"
-            f"3. MATURE BEDROCK OVERRIDE (BORROW):\n"
-            f"   - If '{pkg_name}' is a mature, foundational industry-standard package (e.g. requests, urllib3, cryptography, sqlalchemy, tokio, serde, clsx, lodash, uvicorn, pandas, numpy, express, gin, jackson-databind) with zero critical CVEs, low recent commit velocity reflects API STABILITY & COMPLETENESS ('BORROW'), NOT project abandonment.\n"
-            f"4. CRITICAL SECURITY / ABANDONMENT (MIGRATE):\n"
-            f"   - Recommend MIGRATE if the package has unresolved Critical CVEs, broken security advisories, or active project abandonment without an explicit replacement.\n"
+            f"4. MATURE BEDROCK OVERRIDE (BORROW):\n"
+            f"   - If '{pkg_name}' is a mature, foundational industry-standard package (e.g. requests, urllib3, cryptography, sqlalchemy, tokio, serde, clsx, lodash, uvicorn, pandas, numpy, express, gin, jackson-databind) with zero active CVEs on current release, low recent commit velocity reflects API STABILITY & COMPLETENESS ('BORROW'), NOT project abandonment.\n"
             f"5. DEFAULT BORROW:\n"
             f"   - Recommend BORROW if the package is mature, active, or stable and the feature requirement is non-trivial.\n\n"
             f"OUTPUT REQUIREMENTS:\n"

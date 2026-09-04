@@ -3,6 +3,7 @@ export interface EvaluationRequest {
   task_description?: string;
   system: string; // 'pypi', 'npm', 'cargo', 'go', 'maven'
   user_requirement?: string;
+  cached_github_url?: string;
 }
 
 export interface PackageResolutionResponse {

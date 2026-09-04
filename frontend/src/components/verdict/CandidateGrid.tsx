@@ -1,5 +1,5 @@
 import React from 'react';
-import { Package, ExternalLink, CheckCircle2, AlertCircle } from 'lucide-react';
+import { Package, ExternalLink, CheckCircle2, AlertCircle, PlayCircle, Loader2 } from 'lucide-react';
 import type { CandidateScreeningItem } from '../../types/api';
 import './CandidateGrid.css';
 
@@ -7,12 +7,18 @@ interface CandidateGridProps {
   taskDescription: string;
   candidates: CandidateScreeningItem[];
   primaryPackageName: string;
+  onEvaluateCandidate?: (packageName: string, system: string) => void;
+  evaluatingPackageName?: string | null;
+  evaluatedCacheKeys?: Set<string>;
 }
 
 export const CandidateGrid: React.FC<CandidateGridProps> = ({
   taskDescription,
   candidates,
   primaryPackageName,
+  onEvaluateCandidate,
+  evaluatingPackageName,
+  evaluatedCacheKeys,
 }) => {
   return (
     <div className="candidate-grid-card">
@@ -29,16 +35,43 @@ export const CandidateGrid: React.FC<CandidateGridProps> = ({
       <div className="candidate-cards-container">
         {candidates.map((cand) => {
           const isPrimary = cand.name.toLowerCase() === primaryPackageName.toLowerCase();
+          const isEvaluatingThis =
+            evaluatingPackageName && evaluatingPackageName.toLowerCase() === cand.name.toLowerCase();
+          const cacheKey = `${cand.system.toLowerCase()}:${cand.name.toLowerCase()}`;
+          const isCached = evaluatedCacheKeys ? evaluatedCacheKeys.has(cacheKey) : false;
 
           return (
             <div
               key={cand.name}
               className={`candidate-item-card ${isPrimary ? 'primary-candidate' : ''}`}
             >
-              {isPrimary && (
+              {isPrimary ? (
                 <div className="primary-badge">
-                  <CheckCircle2 className="badge-icon" /> Selected for Deep Analysis
+                  <CheckCircle2 className="badge-icon" /> Selected Candidate
                 </div>
+              ) : (
+                onEvaluateCandidate && (
+                  <button
+                    className={`re-evaluate-btn ${isCached ? 'cached-btn' : ''}`}
+                    disabled={!!evaluatingPackageName}
+                    onClick={() => onEvaluateCandidate(cand.name, cand.system)}
+                    title={isCached ? `Instant load evaluation for ${cand.name}` : `Analyze package ${cand.name}`}
+                  >
+                    {isEvaluatingThis ? (
+                      <>
+                        <Loader2 className="btn-icon spin" /> Evaluating...
+                      </>
+                    ) : isCached ? (
+                      <>
+                        <CheckCircle2 className="btn-icon" /> View Evaluation
+                      </>
+                    ) : (
+                      <>
+                        <PlayCircle className="btn-icon" /> Analyze Package
+                      </>
+                    )}
+                  </button>
+                )
               )}
 
               <div className="cand-top-row">
@@ -82,3 +115,4 @@ export const CandidateGrid: React.FC<CandidateGridProps> = ({
     </div>
   );
 };
+

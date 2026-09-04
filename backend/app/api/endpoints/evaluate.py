@@ -3,13 +3,13 @@ from typing import Optional, List, Dict, Any, Union
 from fastapi import APIRouter, Depends, HTTPException, Query
 from pydantic import BaseModel, Field, model_validator
 
-from app.core.utils import extract_github_owner_repo
+from app.core.utils import extract_github_owner_repo, is_micro_utility_requirement
 from app.core.bigquery import get_bigquery_client
 from app.core.config import settings
 from app.models.deps_dev import PackageResolutionResponse, SecurityContextResponse
 from app.models.forecast import ForecastAnalysis
 from app.queries.deps_dev import query_package_resolution, query_security_and_dependencies
-from app.queries.gh_archive import query_github_weekly_activity
+from app.queries.gh_archive import query_github_weekly_activity, query_arima_plus_forecast
 from app.services.forecasting import project_weekly_series
 from app.services.github_issues import fetch_recent_github_issues
 from app.services.alternative_verifier import verify_alternative_package
@@ -29,6 +29,7 @@ class EvaluationRequest(BaseModel):
     task_description: Optional[str] = Field(None, description="Task requirement (e.g. 'Parse RSS feeds in Python')")
     system: str = Field(default="pypi", description="Package ecosystem (pypi, npm, cargo, go, maven)")
     user_requirement: Optional[str] = Field(None, description="Optional specific feature detail")
+    cached_github_url: Optional[str] = Field(None, description="Optional pre-screened GitHub repository URL for query reuse")
 
     @model_validator(mode="after")
     def validate_at_least_one_field(self):
@@ -80,7 +81,8 @@ class EvaluationSingleResponse(BaseModel):
 def evaluate_single_package_pipeline(
     package_name: str,
     system: str = "pypi",
-    user_requirement: Optional[str] = None
+    user_requirement: Optional[str] = None,
+    cached_github_url: Optional[str] = None
 ) -> PackageEvaluationDetail:
     """
     Executes core evaluation pipeline for a single package:
@@ -96,6 +98,8 @@ def evaluate_single_package_pipeline(
     logger.info(f"   Target Package : '{package_name}' ({system_upper})")
     if user_requirement:
         logger.info(f"   Requirement    : '{user_requirement}'")
+    if cached_github_url:
+        logger.info(f"   Cached Repo URL: '{cached_github_url}' (Fast-Path Query Reuse)")
     logger.info("=" * 80)
 
     # Step 1: deps.dev Resolution & Security
@@ -129,9 +133,13 @@ def evaluate_single_package_pipeline(
             "version": "1.0.0",
             "project_name": package_name,
             "licenses": [],
-            "github_url": None,
+            "github_url": cached_github_url,
             "published_at": None
         }
+
+    if cached_github_url and not resolution_dict.get("github_url"):
+        resolution_dict["github_url"] = cached_github_url
+
 
     resolution_model = PackageResolutionResponse(**resolution_dict)
     security_model = SecurityContextResponse(**security_dict)
@@ -173,17 +181,60 @@ def evaluate_single_package_pipeline(
             except Exception as e:
                 logger.warning(f"GitHub issue/README/metadata fetch failed for {owner}/{repo}: {e}")
 
-            # Query GH Archive weekly activity
+            # Query GH Archive weekly activity from custom warehouse
             try:
                 raw_weekly_data = query_github_weekly_activity(
                     client=get_bigquery_client(), repo_owner=owner, repo_name=repo, lookback_weeks=settings.DEFAULT_LOOKBACK_WEEKS
                 )
                 if raw_weekly_data:
-                    forecast_results = project_weekly_series(raw_weekly_data, forecast_weeks=settings.DEFAULT_FORECAST_WEEKS)
-                    logger.info(f"   ✔ GH Archive Scan  : Analyzed {len(raw_weekly_data)} weeks of activity for {owner}/{repo}")
-                    logger.info(f"   ✔ Forecast Result  : Trend {forecast_results.get('trend_direction')} | Health Score: {forecast_results.get('health_score')}/100 | Signal: {forecast_results.get('maintenance_verdict_signal')}")
+                    # Item 1: Zero-Activity Guard
+                    total_maintenance_events = sum(item.get("total_events", 0) for item in raw_weekly_data)
+                    if total_maintenance_events == 0:
+                        logger.info(f"   [Zero Activity] {owner}/{repo} has 0 events across 104 weeks. Bypassing ARIMA fitting.")
+                        forecast_results = {
+                            "projected_timeline": [],
+                            "trend_direction": "DECLINING",
+                            "health_score": 0.0,
+                            "projected_total_events_90d": 0,
+                            "maintenance_verdict_signal": "AT_RISK_STAGNANT"
+                        }
+                    else:
+                        # Primary Engine: Real BigQuery ML ARIMA_PLUS
+                        if getattr(settings, "ENABLE_BQ_ML_ARIMA", True):
+                            try:
+                                arima_timeline = query_arima_plus_forecast(
+                                    client=get_bigquery_client(),
+                                    repo_owner=owner,
+                                    repo_name=repo,
+                                    lookback_weeks=settings.DEFAULT_LOOKBACK_WEEKS,
+                                    forecast_weeks=settings.DEFAULT_FORECAST_WEEKS,
+                                    weekly_history=raw_weekly_data
+                                )
+                                if arima_timeline:
+                                    projected_total = sum(p.get("projected_events", 0) for p in arima_timeline)
+                                    slope = (arima_timeline[-1]["projected_events"] - arima_timeline[0]["projected_events"]) / len(arima_timeline) if len(arima_timeline) > 1 else 0
+                                    trend = "ACCELERATING" if slope > 0.5 else ("DECLINING" if slope < -0.5 else "STABLE")
+                                    health_score = min(100.0, max(0.0, (projected_total / settings.DEFAULT_FORECAST_WEEKS) * 8.0 + (30.0 if trend == "ACCELERATING" else 15.0)))
+                                    signal = "HEALTHY_ACTIVE" if health_score >= 60 else ("SLOW_MAINTENANCE" if health_score >= 30 else "AT_RISK_STAGNANT")
+                                    forecast_results = {
+                                        "projected_timeline": arima_timeline,
+                                        "trend_direction": trend,
+                                        "health_score": round(health_score, 1),
+                                        "projected_total_events_90d": projected_total,
+                                        "maintenance_verdict_signal": signal
+                                    }
+                                    logger.info(f"   ✔ BQ ML ARIMA_PLUS : Generated 90-day forecast for {owner}/{repo} (Trend: {trend}, Health: {health_score}/100)")
+                            except Exception as arima_err:
+                                logger.warning(f"BigQuery ML ARIMA_PLUS forecast failed ({arima_err}). Falling back to statistical series.")
+
+                        # Backup Engine: Statistical series forecasting in Python
+                        if not forecast_results:
+                            forecast_results = project_weekly_series(raw_weekly_data, forecast_weeks=settings.DEFAULT_FORECAST_WEEKS)
+                            logger.info(f"   ✔ Statistical Fallback : Trend {forecast_results.get('trend_direction')} | Health Score: {forecast_results.get('health_score')}/100")
+
+                    logger.info(f"   ✔ GH Warehouse Scan: Analyzed {len(raw_weekly_data)} weeks of activity for {owner}/{repo}")
             except Exception as e:
-                logger.warning(f"GH Archive query skipped or failed for {owner}/{repo}: {e}")
+                logger.warning(f"GH Warehouse query skipped or failed for {owner}/{repo}: {e}")
 
     historical_summary = {
         "data_retrieved": bool(raw_weekly_data),
@@ -278,13 +329,91 @@ def evaluate_pipeline(request: EvaluationRequest):
         eval_detail = evaluate_single_package_pipeline(
             package_name=pkg_input,
             system=system_input,
-            user_requirement=req_context
+            user_requirement=req_context,
+            cached_github_url=request.cached_github_url
         )
         return EvaluationSingleResponse(mode="package", evaluation=eval_detail)
 
     # Mode 2: Task Mode Evaluation (Option 1 Two-Stage Funnel)
     logger.info(f"Executing Task Mode Evaluation Pipeline for: '{task_input}' ({system_input})")
     
+    # Early Fast-Path Bypass for Micro-Utilities (< 25 LOC)
+    if is_micro_utility_requirement(task_input):
+        logger.info(f"⚡ [Fast-Path Bypass] Detected micro-utility task requirement (< 25 LOC): '{task_input}'. Bypassing BigQuery scans.")
+        
+        builder_res = generate_custom_build(
+            user_requirement=task_input,
+            package_name="custom-utility",
+            system=system_input
+        )
+        
+        fast_path_eval = PackageEvaluationDetail(
+            package_name="in-house-utility",
+            system=system_input,
+            github_url=None,
+            repo_owner=None,
+            repo_name=None,
+            resolution=PackageResolutionResponse(
+                name="in-house-utility",
+                system=system_input,
+                version="1.0.0",
+                project_name="in-house-utility",
+                licenses=["MIT"],
+                github_url=None,
+                published_at=None
+            ),
+            security=SecurityContextResponse(
+                critical_vulnerabilities=0,
+                high_vulnerabilities=0,
+                medium_vulnerabilities=0,
+                low_vulnerabilities=0,
+                unknown_vulnerabilities=0,
+                total_vulnerabilities=0,
+                direct_dependencies=0,
+                transitive_dependencies=0,
+                license="Zero External Dependencies",
+                is_current_version_vulnerable=False
+            ),
+            forecast=ForecastAnalysis(
+                projected_timeline=[],
+                trend_direction="STABLE",
+                health_score=100.0,
+                projected_total_events_90d=0,
+                maintenance_verdict_signal="HEALTHY_ACTIVE"
+            ),
+            recent_issues=[],
+            diagnosis=DiagnosisResponse(
+                status="MAINTAINED_ACTIVE",
+                is_abandoned=False,
+                confidence_score=1.0,
+                confidence_reason="Single-function micro-utility requirement (< 25 LOC). In-house zero-dependency code generated.",
+                bug_severity_assessment="Zero third-party open issue dependency footprint.",
+                explanation=f"Task requirement '{task_input}' is a lightweight micro-utility (under ~25 lines of code). Building in-house eliminates external supply-chain dependency bloat and vulnerability exposure."
+            ),
+            verdict=VerdictResponse(
+                decision="BUILD",
+                confidence_score=1.0,
+                confidence_level="HIGH",
+                confidence_factors=["Single-Function Micro-Utility (< 25 LOC)", "Zero Third-Party Dependency Footprint", "Bypassed BigQuery ML & Heavy Registry Queries"],
+                reasoning=[
+                    f"Feature requirement '{task_input}' is a lightweight single-function utility (< 25 lines of code).",
+                    "Building directly in-house avoids third-party dependency bloat, transitive dependencies, and supply-chain vulnerability risks.",
+                    "Zero external dependencies guarantee maximum execution performance and complete codebase control."
+                ],
+                recommended_alternative=None,
+                estimated_build_effort="~5-15 lines of code, ~5 mins"
+            ),
+            builder=builder_res
+        )
+
+        return EvaluationTaskResponse(
+            mode="task",
+            task_description=task_input,
+            system=system_input,
+            primary_evaluation=fast_path_eval,
+            candidate_screenings=[]
+        )
+
     # Stage 1: Candidate Finder Agent returns 3 candidates with ecosystems
     candidates_res = find_candidate_packages(task_description=task_input, system=system_input)
     candidate_list = candidates_res.candidates

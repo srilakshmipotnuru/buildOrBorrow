@@ -22,6 +22,10 @@ class SecurityContextResponse(BaseModel):
     direct_dependencies: Optional[int] = None
     transitive_dependencies: int = 0
     license: str = "Unknown"
+    affected_version_ranges: List[str] = Field(default_factory=list)
+    active_cves_on_current_version: int = 0
+    patched_historical_cves: int = 0
+    is_current_version_vulnerable: bool = False
 
 
 class DepsDevVerificationResponse(BaseModel):
