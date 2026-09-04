@@ -97,6 +97,8 @@ ${verdict.confidence_factors.map((f) => `- ${f}`).join('\n')}
     setTimeout(() => setCopied(false), 2000);
   };
 
+  const isFastPath = verdict.confidence_factors?.some((f) => f.includes('Bypassed BigQuery')) || packageName === 'in-house-utility';
+
   return (
     <div className={`ui-card verdict-card ${theme.className}`}>
       {/* Top Banner */}
@@ -106,6 +108,12 @@ ${verdict.confidence_factors.map((f) => `- ${f}`).join('\n')}
             <IconComponent className="verdict-icon" />
             <span className="verdict-label">{theme.label}</span>
           </div>
+
+          {isFastPath && (
+            <div className="fastpath-pill" title="Fast-Path Execution: Skipped BigQuery queries for micro-utility requirement (< 25 LOC)">
+              <span>⚡ Fast-Path (&lt; 300ms, $0 Query Cost)</span>
+            </div>
+          )}
 
           <div className="confidence-pill">
             <ShieldCheck className="conf-icon" />

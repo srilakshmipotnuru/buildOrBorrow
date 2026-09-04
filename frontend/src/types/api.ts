@@ -37,10 +37,10 @@ export interface ProjectedWeek {
 
 export interface ForecastAnalysis {
   projected_timeline: ProjectedWeek[];
-  trend_direction: 'ACCELERATING' | 'STABLE' | 'DECLINING' | 'UNAVAILABLE' | 'UNKNOWN';
+  trend_direction: 'ACCELERATING' | 'STABLE' | 'DECLINING' | 'UNAVAILABLE' | 'NOT_APPLICABLE' | 'UNKNOWN';
   health_score: number;
   projected_total_events_90d: number;
-  maintenance_verdict_signal: 'HEALTHY_ACTIVE' | 'SLOW_MAINTENANCE' | 'AT_RISK_STAGNANT' | 'ABANDONED' | 'UNAVAILABLE' | string;
+  maintenance_verdict_signal: 'HEALTHY_ACTIVE' | 'SLOW_MAINTENANCE' | 'AT_RISK_STAGNANT' | 'ABANDONED' | 'UNAVAILABLE' | 'IN_HOUSE_BUILD' | string;
 }
 
 export interface RecentGitHubIssue {

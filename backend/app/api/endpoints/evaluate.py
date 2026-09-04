@@ -376,10 +376,10 @@ def evaluate_pipeline(request: EvaluationRequest):
             ),
             forecast=ForecastAnalysis(
                 projected_timeline=[],
-                trend_direction="STABLE",
+                trend_direction="NOT_APPLICABLE",
                 health_score=100.0,
                 projected_total_events_90d=0,
-                maintenance_verdict_signal="HEALTHY_ACTIVE"
+                maintenance_verdict_signal="IN_HOUSE_BUILD"
             ),
             recent_issues=[],
             diagnosis=DiagnosisResponse(
