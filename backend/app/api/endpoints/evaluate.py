@@ -29,6 +29,7 @@ class EvaluationRequest(BaseModel):
     task_description: Optional[str] = Field(None, description="Task requirement (e.g. 'Parse RSS feeds in Python')")
     system: str = Field(default="pypi", description="Package ecosystem (pypi, npm, cargo, go, maven)")
     user_requirement: Optional[str] = Field(None, description="Optional specific feature detail")
+    cached_github_url: Optional[str] = Field(None, description="Optional pre-screened GitHub repository URL for query reuse")
 
     @model_validator(mode="after")
     def validate_at_least_one_field(self):
@@ -80,7 +81,8 @@ class EvaluationSingleResponse(BaseModel):
 def evaluate_single_package_pipeline(
     package_name: str,
     system: str = "pypi",
-    user_requirement: Optional[str] = None
+    user_requirement: Optional[str] = None,
+    cached_github_url: Optional[str] = None
 ) -> PackageEvaluationDetail:
     """
     Executes core evaluation pipeline for a single package:
@@ -96,6 +98,8 @@ def evaluate_single_package_pipeline(
     logger.info(f"   Target Package : '{package_name}' ({system_upper})")
     if user_requirement:
         logger.info(f"   Requirement    : '{user_requirement}'")
+    if cached_github_url:
+        logger.info(f"   Cached Repo URL: '{cached_github_url}' (Fast-Path Query Reuse)")
     logger.info("=" * 80)
 
     # Step 1: deps.dev Resolution & Security
@@ -129,9 +133,13 @@ def evaluate_single_package_pipeline(
             "version": "1.0.0",
             "project_name": package_name,
             "licenses": [],
-            "github_url": None,
+            "github_url": cached_github_url,
             "published_at": None
         }
+
+    if cached_github_url and not resolution_dict.get("github_url"):
+        resolution_dict["github_url"] = cached_github_url
+
 
     resolution_model = PackageResolutionResponse(**resolution_dict)
     security_model = SecurityContextResponse(**security_dict)
@@ -321,7 +329,8 @@ def evaluate_pipeline(request: EvaluationRequest):
         eval_detail = evaluate_single_package_pipeline(
             package_name=pkg_input,
             system=system_input,
-            user_requirement=req_context
+            user_requirement=req_context,
+            cached_github_url=request.cached_github_url
         )
         return EvaluationSingleResponse(mode="package", evaluation=eval_detail)
 

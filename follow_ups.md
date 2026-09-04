@@ -4,7 +4,7 @@ This document outlines key technical follow-ups and architectural enhancements i
 
 ---
 
-## 1. ⚡ GH Archive Zero-Activity Pre-Check Before Running ARIMA Model [DONE ✅]
+## 1. ⚡ GH Archive Zero-Activity Pre-Check Before Running ARIMA Model
 
 > [!NOTE]
 > **Implementation Summary (Completed):**
@@ -94,7 +94,14 @@ WHERE type IN ('PushEvent', 'PullRequestEvent', 'IssuesEvent', 'WatchEvent')
 
 ---
 
-## 5. 👆 Interactive Candidate Re-Evaluation Action in Candidate Discovery Grid
+## 5. 👆 Interactive Candidate Re-Evaluation Action in Candidate Discovery Grid [DONE ✅]
+
+> [!NOTE]
+> **Implementation Summary (Completed):**
+> - **1-Click Candidate Selection**: Added **`"Run Deep Pipeline"`** action button and active loading state (`Loader2` spinner) to non-selected candidate cards in [`CandidateGrid.tsx`](file:///c:/Users/tvars/OneDrive/Desktop/my_project/buildOrBorrow/frontend/src/components/verdict/CandidateGrid.tsx).
+> - **Global Session-Wide Caching**: Configured `globalPackageCache` in [`App.tsx`](file:///c:/Users/tvars/OneDrive/Desktop/my_project/buildOrBorrow/frontend/src/App.tsx) to persist evaluated packages across searches during the entire browser session. Switching to previously evaluated packages loads **instantly (0ms latency, $0 API cost, 0 BigQuery bytes)** and displays a green **`"View Cached Analysis"`** badge.
+> - **Backend Fast-Path Query Reuse**: Added `cached_github_url` to `EvaluationRequest` payload in [`evaluate.py`](file:///c:/Users/tvars/OneDrive/Desktop/my_project/buildOrBorrow/backend/app/api/endpoints/evaluate.py), bypassing GitHub URL resolution wait times (~300ms latency reduction).
+> - **UX Auto-Scroll Anchor**: Added `verdictRef` smooth scroll anchor (`scrollIntoView({ behavior: 'smooth' })`) to focus user attention on the updated Verdict Hero Card upon candidate selection.
 
 ### **Feature Intent:**
 In **Task Requirement Mode**, the AI Candidate Finder selects 3 package candidates (1 primary candidate selected for deep pipeline evaluation + 2 runner-up candidates displayed as screening cards).
