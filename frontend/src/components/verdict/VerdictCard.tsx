@@ -149,6 +149,12 @@ ${verdict.confidence_factors.map((f) => `- ${f}`).join('\n')}
         <h2 className="verdict-title">{theme.title}</h2>
         <p className="verdict-subtitle">{theme.subtitle}</p>
 
+        {userRequirement && (
+          <div className="task-requirement-context">
+            <strong>Task Requirement:</strong> "{userRequirement}"
+          </div>
+        )}
+
         {/* MIGRATE Recommendation Banner */}
         {verdict.decision === 'MIGRATE' && verdict.recommended_alternative && (
           <div className="migrate-recommendation-box">

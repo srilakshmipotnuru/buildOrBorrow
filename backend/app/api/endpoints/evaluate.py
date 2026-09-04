@@ -348,20 +348,12 @@ def evaluate_pipeline(request: EvaluationRequest):
         )
         
         fast_path_eval = PackageEvaluationDetail(
-            package_name="in-house-utility",
+            package_name=task_input,
             system=system_input,
             github_url=None,
             repo_owner=None,
             repo_name=None,
-            resolution=PackageResolutionResponse(
-                name="in-house-utility",
-                system=system_input,
-                version="1.0.0",
-                project_name="in-house-utility",
-                licenses=["MIT"],
-                github_url=None,
-                published_at=None
-            ),
+            resolution=None,
             security=SecurityContextResponse(
                 critical_vulnerabilities=0,
                 high_vulnerabilities=0,
@@ -453,20 +445,12 @@ def evaluate_pipeline(request: EvaluationRequest):
                 system=system_input
             )
             unverified_eval = PackageEvaluationDetail(
-                package_name="in-house-utility",
+                package_name=task_input,
                 system=system_input,
                 github_url=None,
                 repo_owner=None,
                 repo_name=None,
-                resolution=PackageResolutionResponse(
-                    name="in-house-utility",
-                    system=system_input,
-                    version="1.0.0",
-                    project_name="in-house-utility",
-                    licenses=["MIT"],
-                    github_url=None,
-                    published_at=None
-                ),
+                resolution=None,
                 security=SecurityContextResponse(
                     critical_vulnerabilities=0,
                     high_vulnerabilities=0,

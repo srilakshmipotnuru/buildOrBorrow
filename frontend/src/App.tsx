@@ -177,6 +177,7 @@ function App() {
               verdict={primaryEval.verdict}
               packageName={primaryEval.package_name}
               system={primaryEval.system}
+              userRequirement={result.mode === 'task' ? result.task_description : undefined}
             />
 
             {/* Migration Alternative Comparison Card (Rendered when Verdict is MIGRATE) */}
@@ -189,8 +190,10 @@ function App() {
               <CodeViewer builder={primaryEval.builder} packageName={primaryEval.package_name} />
             )}
 
-            {/* Expandable 6-Step Pipeline Accordion & Recharts Forecast Graph */}
-            <PipelineAccordion evaluation={primaryEval} />
+            {/* Expandable 6-Step Pipeline Accordion & Recharts Forecast Graph (Suppressed for Task Mode BUILD micro-utilities) */}
+            {!(result.mode === 'task' && primaryEval.verdict.decision === 'BUILD' && !primaryEval.resolution) && (
+              <PipelineAccordion evaluation={primaryEval} />
+            )}
 
             {/* Raw JSON Data Transparency Inspector */}
             <RawDataInspector data={result} />
