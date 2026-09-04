@@ -33,30 +33,35 @@ def calculate_formulaic_confidence(
     has_history: bool,
     has_issues: bool,
     has_security: bool,
-    llm_delta: float = 0.0
+    llm_delta: float = 0.0,
+    is_archived: bool = False
 ) -> tuple[float, str, List[str]]:
     """Calculative Confidence Engine: Formulaic Base + LLM Qualitative Delta + Hard Caps."""
     base_score = 0.0
     factors = []
 
-    if has_history:
-        base_score += 0.35
-        factors.append("+ 104-week historical activity timeline & 90-day forecast available")
+    if is_archived:
+        base_score = 1.0
+        factors.append("+ Official GitHub Repository status is ARCHIVED (read-only mode)")
     else:
-        factors.append("- Historical repository activity unavailable")
+        if has_history:
+            base_score += 0.35
+            factors.append("+ 104-week historical activity timeline & 90-day forecast available")
+        else:
+            factors.append("- Historical repository activity unavailable")
 
-    if has_issues:
-        base_score += 0.35
-        factors.append("+ Open GitHub issue titles evaluated for bug severity")
-    else:
-        factors.append("- GitHub open issue text unavailable (confidence capped at 0.65)")
+        if has_issues:
+            base_score += 0.35
+            factors.append("+ Open GitHub issue titles evaluated for bug severity")
+        else:
+            factors.append("- GitHub open issue text unavailable (confidence capped at 0.65)")
 
-    if has_security:
-        base_score += 0.30
-        factors.append("+ deps.dev security advisory & dependency burden scan complete")
+        if has_security:
+            base_score += 0.30
+            factors.append("+ deps.dev security advisory & dependency burden scan complete")
 
     # Hard Cap Guard if key data source was missing
-    if not has_issues or not has_history:
+    if not is_archived and (not has_issues or not has_history):
         base_score = min(base_score, 0.65)
 
     # Apply LLM Delta (-0.15 to +0.05) safely
@@ -153,11 +158,13 @@ def generate_verdict(
                 "Zero third-party dependencies ensure long-term stability."
             ]
 
+        is_archived_flag = "ARCHIVED" in diagnosis_output.get("confidence_reason", "").upper() or "ARCHIVED" in diagnosis_output.get("explanation", "").upper() or bool(diagnosis_output.get("is_archived"))
         conf_score, conf_level, conf_factors = calculate_formulaic_confidence(
             has_history=bool(forecast_analysis),
             has_issues=True,
             has_security=bool(security_context),
-            llm_delta=0.0
+            llm_delta=0.0,
+            is_archived=is_archived_flag
         )
 
         return VerdictResponse(
@@ -225,11 +232,13 @@ def generate_verdict(
 
         if response.parsed and isinstance(response.parsed, VerdictResponse):
             verdict = response.parsed
+            is_archived_flag = "ARCHIVED" in diagnosis_output.get("confidence_reason", "").upper() or "ARCHIVED" in diagnosis_output.get("explanation", "").upper() or bool(diagnosis_output.get("is_archived"))
             conf_score, conf_level, conf_factors = calculate_formulaic_confidence(
                 has_history=bool(forecast_analysis),
                 has_issues=True,
                 has_security=bool(security_context),
-                llm_delta=0.0
+                llm_delta=0.0,
+                is_archived=is_archived_flag
             )
             verdict.confidence_score = conf_score
             verdict.confidence_level = conf_level

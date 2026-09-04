@@ -42,10 +42,20 @@ def diagnose_package(
         verdict_signal = forecast_analysis.get("maintenance_verdict_signal", "UNKNOWN")
         cve_count = sec_info.get("total_vulnerabilities", 0)
         crit_cve = sec_info.get("critical_vulnerabilities", 0)
-        pkg_lower = package_name.lower().strip()
-        is_readme_deprecated = readme_info.get("is_deprecated_in_readme", False)
+        is_archived = readme_info.get("is_archived", False)
 
-        # 1. Deprecation & Replacement Check (README deprecation signal)
+        # 1. Official Platform Archival Signal (GET /repos/{owner}/{repo})
+        if is_archived:
+            return DiagnosisResponse(
+                status="ABANDONED_STRUGGLING",
+                is_abandoned=True,
+                confidence_score=1.0,
+                confidence_reason="Official GitHub Repository status is ARCHIVED (read-only mode).",
+                bug_severity_assessment="Repository is officially archived and read-only.",
+                explanation=f"Package '{package_name}' repository is officially ARCHIVED (read-only mode) on GitHub. Maintenance has permanently ceased."
+            )
+
+        # 2. Deprecation & Replacement Check (README deprecation signal)
         if is_readme_deprecated:
             return DiagnosisResponse(
                 status="ABANDONED_STRUGGLING",
@@ -89,8 +99,9 @@ def diagnose_package(
 
     api_key = settings.GEMINI_API_KEY
     is_readme_deprecated = readme_info.get("is_deprecated_in_readme", False)
+    is_archived = readme_info.get("is_archived", False)
 
-    if not api_key or is_readme_deprecated:
+    if not api_key or is_readme_deprecated or is_archived:
         return _rule_based_fallback()
 
     formatted_issue_list = "\n".join([

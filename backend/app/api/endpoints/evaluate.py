@@ -157,17 +157,21 @@ def evaluate_single_package_pipeline(
         parsed = extract_github_owner_repo(github_url)
         if parsed:
             owner, repo = parsed
-            # Fetch recent issues and README summary via GitHub REST API
-            logger.info("🐛 [STEP 3/6] Retrieving Recent GitHub Issues & README Deprecation Summary...")
+            # Fetch recent issues, README summary, and repo metadata via GitHub REST API
+            logger.info("🐛 [STEP 3/6] Retrieving Recent GitHub Issues, Repository Metadata & README Deprecation Summary...")
             try:
-                from app.services.github_issues import fetch_github_readme_summary
+                from app.services.github_issues import fetch_github_readme_summary, fetch_github_repo_metadata
                 recent_issues = fetch_recent_github_issues(owner=owner, repo=repo, max_issues=settings.GITHUB_ISSUES_MAX_COUNT)
                 readme_context = fetch_github_readme_summary(owner=owner, repo=repo)
+                repo_meta = fetch_github_repo_metadata(owner=owner, repo=repo)
+                if repo_meta.get("is_archived"):
+                    readme_context["is_archived"] = True
+                    logger.warning(f"   ⚠️ GitHub Platform Notice: Repository {owner}/{repo} is officially ARCHIVED (read-only mode).")
                 logger.info(f"   ✔ GitHub Issues    : Fetched {len(recent_issues)} recent open issues for {owner}/{repo}")
                 if readme_context.get("is_deprecated_in_readme"):
                     logger.warning(f"   ⚠️ GitHub README Warning: Deprecation/renaming keywords detected in README for {owner}/{repo}")
             except Exception as e:
-                logger.warning(f"GitHub issue/README fetch failed for {owner}/{repo}: {e}")
+                logger.warning(f"GitHub issue/README/metadata fetch failed for {owner}/{repo}: {e}")
 
             # Query GH Archive weekly activity
             try:
