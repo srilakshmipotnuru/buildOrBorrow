@@ -406,22 +406,12 @@ def evaluate_pipeline(request: EvaluationRequest):
             builder=builder_res
         )
 
-        screening_item = CandidateScreeningItem(
-            name="in-house-utility",
-            system=system_input,
-            reason=f"Fast-path zero-dependency in-house replacement generated for micro-utility '{task_input}'.",
-            version="1.0.0",
-            github_url=None,
-            licenses=["MIT"],
-            verified_exists=True
-        )
-
         return EvaluationTaskResponse(
             mode="task",
             task_description=task_input,
             system=system_input,
             primary_evaluation=fast_path_eval,
-            candidate_screenings=[screening_item]
+            candidate_screenings=[]
         )
 
     # Stage 1: Candidate Finder Agent returns 3 candidates with ecosystems

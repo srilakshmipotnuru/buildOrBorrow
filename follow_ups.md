@@ -212,12 +212,12 @@ When the latest release version of a healthy package (e.g. `v2.4.0`) contains a 
 
 ---
 
-## 10. ⚡ Early Fast-Path "BUILD" Bypass for Micro-Utilities (< 25 LOC) [DONE ✅]
+## 10. ⚡ Early Fast-Path 'BUILD' Bypass for Micro-Utilities (< 25 LOC) [DONE ✅]
 
 > [!NOTE]
 > **Implementation Summary (Completed):**
-> - **Early Classifier Helper**: Added `is_micro_utility_requirement` in [`utils.py`](file:///c:/Users/tvars/OneDrive/Desktop/my_project/buildOrBorrow/backend/app/core/utils.py#L35-L60) to detect trivial single-function requirements under ~25 lines of code.
-> - **Pipeline Bypass**: In [`evaluate.py`](file:///c:/Users/tvars/OneDrive/Desktop/my_project/buildOrBorrow/backend/app/api/endpoints/evaluate.py#L338-L425), when a micro-utility is detected in Task Mode, it skips BigQuery warehouse queries, ARIMA model fitting, and security advisory scans.
+> - **Early Classifier Helper**: Added `is_micro_utility_requirement` in [`utils.py`] to detect trivial single-function requirements under ~25 lines of code.
+> - **Pipeline Bypass**: In [`evaluate.py`], when a micro-utility is detected in Task Mode, it skips BigQuery warehouse queries, ARIMA model fitting, and security advisory scans.
 > - **Instant Code Generation**: Immediately invokes the Builder Agent to return a **`BUILD`** verdict along with production-ready, zero-dependency Python/TypeScript code in **< 400ms** latency ($0 BigQuery query cost).
 When a user asks for a trivial helper (e.g. *"left pad a string"*, *"slugify text"*, *"check if a number is even"*, *"clamp float between min/max"*), running a full 104-week BigQuery GH Archive query, fitting Statsmodels/ARIMA ML models, and scanning security advisories wastes execution time (~3–5s) and incurs unnecessary query costs for a 5-line function.
 

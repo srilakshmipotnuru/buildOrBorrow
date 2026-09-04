@@ -160,8 +160,8 @@ function App() {
 
         {result && primaryEval && (
           <div className="results-wrapper" ref={verdictRef}>
-            {/* Task Candidate Screening Grid (Rendered in Task Mode) */}
-            {result.mode === 'task' && (
+            {/* Task Candidate Screening Grid (Rendered in Task Mode when candidates exist) */}
+            {result.mode === 'task' && result.candidate_screenings && result.candidate_screenings.length > 0 && (
               <CandidateGrid
                 taskDescription={result.task_description}
                 candidates={result.candidate_screenings}
