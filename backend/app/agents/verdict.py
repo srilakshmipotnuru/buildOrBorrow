@@ -33,30 +33,35 @@ def calculate_formulaic_confidence(
     has_history: bool,
     has_issues: bool,
     has_security: bool,
-    llm_delta: float = 0.0
+    llm_delta: float = 0.0,
+    is_archived: bool = False
 ) -> tuple[float, str, List[str]]:
     """Calculative Confidence Engine: Formulaic Base + LLM Qualitative Delta + Hard Caps."""
     base_score = 0.0
     factors = []
 
-    if has_history:
-        base_score += 0.35
-        factors.append("+ 104-week historical activity timeline & 90-day forecast available")
+    if is_archived:
+        base_score = 1.0
+        factors.append("+ Official GitHub Repository status is ARCHIVED (read-only mode)")
     else:
-        factors.append("- Historical repository activity unavailable")
+        if has_history:
+            base_score += 0.35
+            factors.append("+ 104-week historical activity timeline & 90-day forecast available")
+        else:
+            factors.append("- Historical repository activity unavailable")
 
-    if has_issues:
-        base_score += 0.35
-        factors.append("+ Open GitHub issue titles evaluated for bug severity")
-    else:
-        factors.append("- GitHub open issue text unavailable (confidence capped at 0.65)")
+        if has_issues:
+            base_score += 0.35
+            factors.append("+ Open GitHub issue titles evaluated for bug severity")
+        else:
+            factors.append("- GitHub open issue text unavailable (confidence capped at 0.65)")
 
-    if has_security:
-        base_score += 0.30
-        factors.append("+ deps.dev security advisory & dependency burden scan complete")
+        if has_security:
+            base_score += 0.30
+            factors.append("+ deps.dev security advisory & dependency burden scan complete")
 
     # Hard Cap Guard if key data source was missing
-    if not has_issues or not has_history:
+    if not is_archived and (not has_issues or not has_history):
         base_score = min(base_score, 0.65)
 
     # Apply LLM Delta (-0.15 to +0.05) safely
@@ -94,61 +99,7 @@ def generate_verdict(
         crit_cve = security_context.get("critical_vulnerabilities", 0)
         pkg_lower = pkg_name.lower().strip()
 
-        # 1. Deprecation & Replacement Check (MIGRATE)
-        deprecated_map = {
-            "passlib": "argon2-cffi",
-            "node-uuid": "uuid",
-            "rustc-serialize": "serde",
-            "mysql-python": "mysqlclient",
-            "pep8": "pycodestyle",
-            "requests-async": "httpx",
-            "nomurl": "urllib3",
-            "urllib3-legacy": "urllib3",
-            "mock": "unittest.mock",
-            "pycrypto": "pycryptodome",
-            "nose": "pytest",
-            "moment": "dayjs",
-            "bower": "npm",
-            "request": "axios"
-        }
-        if pkg_lower in deprecated_map:
-            rec_alt = deprecated_map[pkg_lower]
-            return VerdictResponse(
-                decision="MIGRATE",
-                confidence_score=1.0,
-                confidence_level="HIGH",
-                confidence_factors=["Official Deprecation Signal", "Direct Replacement Available"],
-                reasoning=[
-                    f"Package '{pkg_name}' is officially deprecated or replaced by '{rec_alt}'.",
-                    f"Migrating to '{rec_alt}' eliminates maintenance stagnation risk.",
-                    "Modern replacement provides active security updates and long-term stability."
-                ],
-                recommended_alternative=rec_alt,
-                recommended_alternative_system=system
-            )
-
-        # 2. Micro-Utility / Trivial Code Check (BUILD)
-        micro_utils = [
-            "clamp", "repeat-string", "is-nil", "upper-case", "lower-case",
-            "left-pad", "is-number", "is-even", "is-odd", "slugify",
-            "arr-flatten", "escape-string-regexp", "is-whitespace"
-        ]
-        if pkg_lower in micro_utils or (user_requirement and any(w in user_requirement.lower() for w in ["clamp", "repeat", "null or undefined", "uppercase", "left pad", "is number", "slugify", "flatten", "escape string"])):
-            return VerdictResponse(
-                decision="BUILD",
-                confidence_score=0.95,
-                confidence_level="HIGH",
-                confidence_factors=["Single-Function Utility", "Zero Third-Party Dependency Footprint"],
-                reasoning=[
-                    f"Feature requirement for '{pkg_name}' is a trivial micro-utility (under 20 lines of code).",
-                    "Building in-house eliminates external supply-chain dependency bloat.",
-                    "Zero external dependencies ensure maximum performance and codebase security."
-                ],
-                recommended_alternative=None,
-                estimated_build_effort="~5-15 lines of code, ~5 mins"
-            )
-
-        # 3. Critical Security Check (MIGRATE)
+        # 1. Critical Security Check (MIGRATE)
         if crit_cve > 0 or status_val == "VULNERABLE":
             rec_alt = f"{pkg_name}-alternative"
             return VerdictResponse(
@@ -165,7 +116,23 @@ def generate_verdict(
                 recommended_alternative_system=system
             )
 
-        # 4. "Finished Software" vs. "Dead Software" Check
+        # 2. Micro-Utility / Trivial Code Check (BUILD)
+        if user_requirement and any(w in user_requirement.lower() for w in ["clamp", "repeat", "null or undefined", "uppercase", "left pad", "is number", "slugify", "flatten", "escape string"]):
+            return VerdictResponse(
+                decision="BUILD",
+                confidence_score=0.95,
+                confidence_level="HIGH",
+                confidence_factors=["Single-Function Utility", "Zero Third-Party Dependency Footprint"],
+                reasoning=[
+                    f"Feature requirement for '{pkg_name}' is a trivial micro-utility (under 20 lines of code).",
+                    "Building in-house eliminates external supply-chain dependency bloat.",
+                    "Zero external dependencies ensure maximum performance and codebase security."
+                ],
+                recommended_alternative=None,
+                estimated_build_effort="~5-15 lines of code, ~5 mins"
+            )
+
+        # 3. "Finished Software" vs. "Dead Software" Check
         if is_ab or status_val == "ABANDONED_STRUGGLING":
             rec_alt = f"{pkg_name}-alternative"
             dec = "MIGRATE"
@@ -191,11 +158,13 @@ def generate_verdict(
                 "Zero third-party dependencies ensure long-term stability."
             ]
 
+        is_archived_flag = "ARCHIVED" in diagnosis_output.get("confidence_reason", "").upper() or "ARCHIVED" in diagnosis_output.get("explanation", "").upper() or bool(diagnosis_output.get("is_archived"))
         conf_score, conf_level, conf_factors = calculate_formulaic_confidence(
             has_history=bool(forecast_analysis),
             has_issues=True,
             has_security=bool(security_context),
-            llm_delta=0.0
+            llm_delta=0.0,
+            is_archived=is_archived_flag
         )
 
         return VerdictResponse(
@@ -209,30 +178,7 @@ def generate_verdict(
             estimated_build_effort="~25 lines of code, ~15 mins" if dec == "BUILD" else None
         )
 
-    pkg_lower = pkg_name.lower().strip()
-    deprecated_map = {
-        "passlib": "argon2-cffi",
-        "node-uuid": "uuid",
-        "rustc-serialize": "serde",
-        "mysql-python": "mysqlclient",
-        "pep8": "pycodestyle",
-        "requests-async": "httpx",
-        "nomurl": "urllib3",
-        "urllib3-legacy": "urllib3",
-        "mock": "unittest.mock",
-        "pycrypto": "pycryptodome",
-        "nose": "pytest",
-        "moment": "dayjs",
-        "bower": "npm",
-        "request": "axios"
-    }
-    micro_utils = [
-        "clamp", "repeat-string", "is-nil", "upper-case", "lower-case",
-        "left-pad", "is-number", "is-even", "is-odd", "slugify",
-        "arr-flatten", "escape-string-regexp", "is-whitespace"
-    ]
-
-    if not api_key or pkg_lower in deprecated_map or pkg_lower in micro_utils:
+    if not api_key:
         return _rule_based_verdict_fallback()
 
     try:
@@ -255,19 +201,24 @@ def generate_verdict(
             f"- Transitive Dependencies: {security_context.get('transitive_dependencies', 0)}\n"
             f"- License: {security_context.get('license', 'Unknown')}\n\n"
             f"DECISION RULES:\n"
-            f"1. MATURE BEDROCK OVERRIDE (BORROW):\n"
-            f"   - If a package is a mature, foundational industry standard (e.g., requests, lodash, numpy, urllib3, pandas) with zero critical CVEs, low recent commit velocity reflects API STABILITY & COMPLETENESS ('BORROW'), NOT project abandonment.\n"
-            f"2. SUPERSEDED / RENAMED PACKAGES (MIGRATE):\n"
-            f"   - If a package was officially renamed or superseded (e.g. pep8 -> pycodestyle, requests-async -> httpx, nomurl -> urllib3), recommend MIGRATE and specify the official replacement.\n"
-            f"3. LOOSENED BUILD CRITERIA (BUILD):\n"
-            f"   - Recommend BUILD if the functionality can be written in under 25 lines of standard library code without external dependencies (e.g., left-pad, is-number, is-even, slugify, dict-deep, pad-left).\n"
-            f"4. MIGRATE: If the package has unresolved Critical CVEs, broken security advisories, or active project abandonment.\n"
-            f"5. BORROW: If the package is mature, active, or stable and the feature requirement is non-trivial.\n\n"
+            f"1. DYNAMIC MICRO-UTILITY CLASSIFICATION (BUILD):\n"
+            f"   - Dynamically analyze if '{pkg_name}' or the feature requirement is a trivial micro-utility (under ~25 lines of code, single-function helper like string padding, clamping, null checks, string repetition, slugification, case conversion, or array flattening) across ANY ecosystem.\n"
+            f"   - If it is a micro-utility, set decision to BUILD and set estimated_build_effort (e.g. '~5-15 lines of code, ~5 mins'). Building in-house eliminates external supply-chain dependency bloat.\n"
+            f"2. DYNAMIC DEPRECATED / SUPERSEDED / RENAMED CLASSIFICATION (MIGRATE):\n"
+            f"   - Dynamically evaluate if '{pkg_name}' is officially deprecated, unmaintained, legacy, or superseded by a modern alternative library across ANY ecosystem (e.g. passlib -> argon2-cffi, pep8 -> pycodestyle, node-uuid -> uuid, requests-async -> httpx, mysql-python -> mysqlclient, rustc-serialize -> serde, pycrypto -> pycryptodome, moment -> dayjs, bower -> npm, request -> axios).\n"
+            f"   - If deprecated or superseded, set decision to MIGRATE and specify the modern active replacement package in recommended_alternative.\n"
+            f"3. MATURE BEDROCK OVERRIDE (BORROW):\n"
+            f"   - If '{pkg_name}' is a mature, foundational industry-standard package (e.g. requests, urllib3, cryptography, sqlalchemy, tokio, serde, clsx, lodash, uvicorn, pandas, numpy, express, gin, jackson-databind) with zero critical CVEs, low recent commit velocity reflects API STABILITY & COMPLETENESS ('BORROW'), NOT project abandonment.\n"
+            f"4. CRITICAL SECURITY / ABANDONMENT (MIGRATE):\n"
+            f"   - Recommend MIGRATE if the package has unresolved Critical CVEs, broken security advisories, or active project abandonment without an explicit replacement.\n"
+            f"5. DEFAULT BORROW:\n"
+            f"   - Recommend BORROW if the package is mature, active, or stable and the feature requirement is non-trivial.\n\n"
             f"OUTPUT REQUIREMENTS:\n"
             f"- Set decision to BORROW, MIGRATE, or BUILD.\n"
             f"- Set confidence_score (0.0 to 1.0) and confidence_level (HIGH, MEDIUM, or LOW).\n"
             f"- Provide 3 key reasoning bullet points.\n"
-            f"- If BUILD, provide estimated_build_effort (e.g. '15 lines of code, ~10 mins')."
+            f"- If BUILD, provide estimated_build_effort (e.g. '15 lines of code, ~10 mins').\n"
+            f"- If MIGRATE, set recommended_alternative to the suggested replacement package name."
         )
 
         from app.core.utils import call_gemini_with_retry
@@ -281,11 +232,13 @@ def generate_verdict(
 
         if response.parsed and isinstance(response.parsed, VerdictResponse):
             verdict = response.parsed
+            is_archived_flag = "ARCHIVED" in diagnosis_output.get("confidence_reason", "").upper() or "ARCHIVED" in diagnosis_output.get("explanation", "").upper() or bool(diagnosis_output.get("is_archived"))
             conf_score, conf_level, conf_factors = calculate_formulaic_confidence(
                 has_history=bool(forecast_analysis),
                 has_issues=True,
                 has_security=bool(security_context),
-                llm_delta=0.0
+                llm_delta=0.0,
+                is_archived=is_archived_flag
             )
             verdict.confidence_score = conf_score
             verdict.confidence_level = conf_level
