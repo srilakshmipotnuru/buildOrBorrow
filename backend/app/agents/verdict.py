@@ -18,7 +18,7 @@ class AlternativeVerification(BaseModel):
 
 
 class VerdictResponse(BaseModel):
-    decision: Literal["BORROW", "MIGRATE", "BUILD"] = Field(description="Final decision: BORROW, MIGRATE, or BUILD")
+    decision: Literal["BORROW", "MIGRATE", "BUILD", "UNVERIFIED_CANDIDATES"] = Field(description="Final decision: BORROW, MIGRATE, BUILD, or UNVERIFIED_CANDIDATES")
     confidence_score: float = Field(description="Calculative confidence score between 0.0 and 1.0")
     confidence_level: Literal["HIGH", "MEDIUM", "LOW"] = Field(description="Human-readable confidence rating")
     confidence_factors: List[str] = Field(description="List of evidence factors affecting confidence")
@@ -143,6 +143,14 @@ def generate_verdict(
                 f"Package '{pkg_name}' shows project abandonment and struggling issue resolution.",
                 "Stagnant maintenance signals suggest migrating to an active alternative.",
                 "Adopting an active library prevents technical debt accumulation."
+            ]
+        elif status_val == "UNCERTAIN_UNVERIFIED":
+            dec = "UNVERIFIED_CANDIDATES"
+            rec_alt = None
+            reasoning_bullets = [
+                f"Package '{pkg_name}' repository metadata could not be resolved or verified in the {system} registry.",
+                "Telemetry and source repository activity are unavailable for health scoring.",
+                "Please verify registry connection or evaluate by exact package name."
             ]
         elif health_score >= 50 or status_val in ["MATURE_STABLE", "MAINTAINED_ACTIVE"]:
             dec = "BORROW"

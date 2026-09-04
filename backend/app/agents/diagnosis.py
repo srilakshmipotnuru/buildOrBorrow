@@ -8,7 +8,7 @@ logger = logging.getLogger(__name__)
 
 
 class DiagnosisResponse(BaseModel):
-    status: Literal["MATURE_STABLE", "MAINTAINED_ACTIVE", "ABANDONED_STRUGGLING", "VULNERABLE"] = Field(
+    status: Literal["MATURE_STABLE", "MAINTAINED_ACTIVE", "ABANDONED_STRUGGLING", "VULNERABLE", "UNCERTAIN_UNVERIFIED"] = Field(
         description="Qualitative package maintenance status"
     )
     is_abandoned: bool = Field(description="True if package is abandoned or struggling with unresolved bugs")
@@ -77,7 +77,18 @@ def diagnose_package(
                 explanation=f"Package '{package_name}' has unresolved security advisories."
             )
 
-        # 3. "Finished Software" vs. "Dead Software" Check
+        # 3. Repository / Telemetry Unavailable Signal
+        if verdict_signal == "UNAVAILABLE":
+            return DiagnosisResponse(
+                status="UNCERTAIN_UNVERIFIED",
+                is_abandoned=False,
+                confidence_score=0.5,
+                confidence_reason="Repository URL or telemetry is unavailable in ecosystem registry metadata.",
+                bug_severity_assessment="Could not fetch open GitHub issues or activity telemetry.",
+                explanation=f"Package '{package_name}' repository metadata is unavailable or unverified in the ecosystem registry."
+            )
+
+        # 4. "Finished Software" vs. "Dead Software" Check
         if health_score >= 60 or verdict_signal == "HEALTHY_ACTIVE":
             status_val = "MAINTAINED_ACTIVE"
             is_ab = False

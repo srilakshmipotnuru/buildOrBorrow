@@ -45,6 +45,14 @@ export const VerdictCard: React.FC<VerdictCardProps> = ({
           icon: Hammer,
           className: 'verdict-build',
         };
+      case 'UNVERIFIED_CANDIDATES':
+        return {
+          label: 'UNVERIFIED CANDIDATES',
+          title: 'Candidate Packages Unverified in Registry',
+          subtitle: 'Could not verify candidate packages in registry for this complex task. Evaluate by exact package name.',
+          icon: AlertTriangle,
+          className: 'verdict-migrate',
+        };
       default:
         return {
           label: decision,
