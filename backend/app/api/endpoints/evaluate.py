@@ -343,7 +343,7 @@ def evaluate_pipeline(request: EvaluationRequest):
         
         builder_res = generate_custom_build(
             user_requirement=task_input,
-            package_name="custom-utility",
+            package_name=task_input,
             system=system_input
         )
         
@@ -441,7 +441,7 @@ def evaluate_pipeline(request: EvaluationRequest):
             logger.info(f"⚡ [Task Scale Guard] Unverified candidates for micro-utility task '{task_input}'. Issuing BUILD verdict.")
             builder_res = generate_custom_build(
                 user_requirement=task_input,
-                package_name="custom-utility",
+                package_name=task_input,
                 system=system_input
             )
             unverified_eval = PackageEvaluationDetail(
