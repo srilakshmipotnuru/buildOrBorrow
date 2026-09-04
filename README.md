@@ -464,3 +464,11 @@ Confirm that the pipeline produces sensible results
 1. Build the `diagnosis_agent` (including the issue-title fetch)
 2. Build the `verdict_agent`
 3. Build the React UI
+
+---
+
+## 23. Data Warehouse & Collaborator Documentation
+
+For detailed technical specifications on the custom BigQuery data warehouse, SQL DDL queries, BigQuery ML `ARIMA_PLUS` models, and collaborator IAM setup guides, see:
+* 📄 **[`docs/bigquery_warehouse.md`](file:///d:/Downloads/patchamomma/buildOrBorrow/docs/bigquery_warehouse.md)** — Complete BigQuery Warehouse DDL, ML Model & Collaborator Guide.
+
