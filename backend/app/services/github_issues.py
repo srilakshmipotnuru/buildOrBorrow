@@ -162,3 +162,44 @@ def fetch_github_readme_summary(owner: str, repo: str) -> Dict[str, Any]:
 
     return {"has_readme": False, "is_deprecated_in_readme": False, "readme_snippet": ""}
 
+
+def fetch_github_repo_metadata(owner: str, repo: str) -> Dict[str, Any]:
+    """
+    Fetches repository REST metadata from GET /repos/{owner}/{repo}.
+    Retrieves official `archived` boolean flag, stargazers_count, and forks_count.
+    """
+    owner = owner.strip()
+    repo = repo.strip()
+    full_repo = f"{owner}/{repo}"
+
+    headers = {
+        "User-Agent": "BuildOrBorrow/1.0",
+        "Accept": "application/vnd.github.v3+json",
+    }
+    if hasattr(settings, "GITHUB_TOKEN") and settings.GITHUB_TOKEN:
+        headers["Authorization"] = f"Bearer {settings.GITHUB_TOKEN}"
+
+    url = f"https://api.github.com/repos/{full_repo}"
+    try:
+        response = requests.get(url, headers=headers, timeout=settings.GITHUB_API_TIMEOUT_SECONDS)
+        if response.status_code == 200:
+            data = response.json()
+            is_archived = data.get("archived", False)
+            stars = data.get("stargazers_count", 0)
+            forks = data.get("forks_count", 0)
+            logger.info(f"   [GitHub Repo Metadata] Retrieved metadata for '{full_repo}' (Archived: {is_archived}, Stars: {stars}, Forks: {forks})")
+            return {
+                "is_archived": is_archived,
+                "stargazers_count": stars,
+                "forks_count": forks,
+                "default_branch": data.get("default_branch", "main"),
+                "description": data.get("description", "")
+            }
+        else:
+            logger.warning(f"GitHub Repo metadata endpoint returned HTTP {response.status_code} for {full_repo}")
+    except Exception as e:
+        logger.warning(f"GitHub Repo metadata request failed for {full_repo}: {e}")
+
+    return {"is_archived": False, "stargazers_count": 0, "forks_count": 0}
+
+

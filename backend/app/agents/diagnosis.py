@@ -42,41 +42,31 @@ def diagnose_package(
         verdict_signal = forecast_analysis.get("maintenance_verdict_signal", "UNKNOWN")
         cve_count = sec_info.get("total_vulnerabilities", 0)
         crit_cve = sec_info.get("critical_vulnerabilities", 0)
-        pkg_lower = package_name.lower().strip()
-        is_readme_deprecated = readme_info.get("is_deprecated_in_readme", False)
+        is_archived = readme_info.get("is_archived", False)
 
-        # 1. Deprecation & Replacement Check (README deprecation signal or known deprecated)
-        known_deprecated = [
-            "passlib", "node-uuid", "rustc-serialize", "mysql-python", "pep8", "requests-async",
-            "nomurl", "urllib3-legacy", "mock", "pycrypto", "nose", "moment", "bower", "request"
-        ]
-        if is_readme_deprecated or pkg_lower in known_deprecated:
+        # 1. Official Platform Archival Signal (GET /repos/{owner}/{repo})
+        if is_archived:
+            return DiagnosisResponse(
+                status="ABANDONED_STRUGGLING",
+                is_abandoned=True,
+                confidence_score=1.0,
+                confidence_reason="Official GitHub Repository status is ARCHIVED (read-only mode).",
+                bug_severity_assessment="Repository is officially archived and read-only.",
+                explanation=f"Package '{package_name}' repository is officially ARCHIVED (read-only mode) on GitHub. Maintenance has permanently ceased."
+            )
+
+        # 2. Deprecation & Replacement Check (README deprecation signal)
+        if is_readme_deprecated:
             return DiagnosisResponse(
                 status="ABANDONED_STRUGGLING",
                 is_abandoned=True,
                 confidence_score=0.95,
                 confidence_reason="Package is officially deprecated/renamed in README header or ecosystem registry.",
                 bug_severity_assessment="Project is unmaintained / deprecated.",
-                explanation=f"Fallback diagnosis identified '{package_name}' as deprecated from README/registry notices."
+                explanation=f"Fallback diagnosis identified '{package_name}' as deprecated from README notices."
             )
 
-        # 2. Micro-Utility / Trivial Code Check (clamp, repeat-string, is-nil, upper-case, etc.)
-        known_micro_utils = [
-            "clamp", "repeat-string", "is-nil", "upper-case", "lower-case",
-            "left-pad", "is-number", "is-even", "is-odd", "slugify",
-            "arr-flatten", "escape-string-regexp", "is-whitespace"
-        ]
-        if pkg_lower in known_micro_utils:
-            return DiagnosisResponse(
-                status="MATURE_STABLE",
-                is_abandoned=False,
-                confidence_score=0.90,
-                confidence_reason="Identified as a micro-utility / single-purpose helper function.",
-                bug_severity_assessment="Low risk single-function utility.",
-                explanation=f"'{package_name}' is a feature-complete micro-utility suitable for zero-dependency in-house implementation."
-            )
-
-        # 3. Critical Security Check
+        # 2. Critical Security Check
         if crit_cve > 0 or cve_count >= 3:
             return DiagnosisResponse(
                 status="VULNERABLE",
@@ -87,7 +77,7 @@ def diagnose_package(
                 explanation=f"Package '{package_name}' has unresolved security advisories."
             )
 
-        # 4. "Finished Software" vs. "Dead Software" Check
+        # 3. "Finished Software" vs. "Dead Software" Check
         if health_score >= 60 or verdict_signal == "HEALTHY_ACTIVE":
             status_val = "MAINTAINED_ACTIVE"
             is_ab = False
@@ -108,14 +98,10 @@ def diagnose_package(
         )
 
     api_key = settings.GEMINI_API_KEY
-    pkg_lower = package_name.lower().strip()
     is_readme_deprecated = readme_info.get("is_deprecated_in_readme", False)
-    known_deprecated = [
-        "passlib", "node-uuid", "rustc-serialize", "mysql-python", "pep8", "requests-async",
-        "nomurl", "urllib3-legacy", "mock", "pycrypto", "nose", "moment", "bower", "request"
-    ]
+    is_archived = readme_info.get("is_archived", False)
 
-    if not api_key or is_readme_deprecated or pkg_lower in known_deprecated:
+    if not api_key or is_readme_deprecated or is_archived:
         return _rule_based_fallback()
 
     formatted_issue_list = "\n".join([
