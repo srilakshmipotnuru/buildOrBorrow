@@ -4,11 +4,11 @@ This document outlines key technical follow-ups and architectural enhancements i
 
 ---
 
-## 1. ⚡ GH Archive Zero-Activity Pre-Check Before Running ARIMA Model
+## 1. ⚡ GH Archive Zero-Activity Pre-Check Before Running ARIMA Model [DONE ✅]
 
 > [!NOTE]
 > **Implementation Summary (Completed):**
-> Implemented in [`backend/app/api/endpoints/evaluate.py`](file:///d:/Downloads/patchamomma/buildOrBorrow/backend/app/api/endpoints/evaluate.py) and [`backend/app/api/endpoints/forecast.py`](file:///d:/Downloads/patchamomma/buildOrBorrow/backend/app/api/endpoints/forecast.py). Before invoking BigQuery ML `ARIMA_PLUS`, the pipeline checks if `sum(total_events) == 0`. If dormant/stagnant, it immediately sets `health_score = 0.0`, `trend_direction = 'DECLINING'`, and `maintenance_verdict_signal = 'AT_RISK_STAGNANT'`, completely bypassing ML model fitting and eliminating unnecessary training costs and warnings.
+> Implemented in [`backend/app/api/endpoints/evaluate.py`](file:///c:/Users/tvars/OneDrive/Desktop/my_project/buildOrBorrow/backend/app/api/endpoints/evaluate.py) and [`backend/app/api/endpoints/forecast.py`](file:///c:/Users/tvars/OneDrive/Desktop/my_project/buildOrBorrow/backend/app/api/endpoints/forecast.py). Before invoking BigQuery ML `ARIMA_PLUS`, the pipeline checks if `sum(total_events) == 0`. If dormant/stagnant, it immediately sets `health_score = 0.0`, `trend_direction = 'DECLINING'`, and `maintenance_verdict_signal = 'AT_RISK_STAGNANT'`, completely bypassing ML model fitting and eliminating unnecessary training costs and warnings.
 
 ### **Problem Statement:**
 Currently, when a repository has 0 commits or 0 developer events across the historical lookback window (e.g. 104 weeks), the pipeline still attempts to fit Statsmodels / BigQuery ML ARIMA forecasting models. Running time-series models on zero-variance or empty arrays wastes CPU execution time, incurs unnecessary BigQuery ML query costs, and produces convergence warnings.
@@ -40,9 +40,9 @@ GitHub allows repository owners to mark a repository as officially **Archived** 
 
 > [!NOTE]
 > **Implementation Summary (Completed):**
-> Extended event tracking schema in [`models/gh_archive.py`](file:///d:/Downloads/patchamomma/buildOrBorrow/backend/app/models/gh_archive.py) and queries in [`queries/gh_archive.py`](file:///d:/Downloads/patchamomma/buildOrBorrow/backend/app/queries/gh_archive.py). Included `create_events` (tags/releases, weight 3.0), `comment_events` (triage discussions, weight 1.0), and composite `weighted_activity`. Excluded automated bots (`actor.login NOT LIKE '%[bot]'`), and fully baked these aggregated metrics into the warehouse table `build_or_borrow_dw.github_weekly_activity`.
+> Extended event tracking schema in [`models/gh_archive.py`](file:///c:/Users/tvars/OneDrive/Desktop/my_project/buildOrBorrow/backend/app/models/gh_archive.py) and queries in [`queries/gh_archive.py`](file:///c:/Users/tvars/OneDrive/Desktop/my_project/buildOrBorrow/backend/app/queries/gh_archive.py). Included `create_events` (tags/releases, weight 3.0), `comment_events` (triage discussions, weight 1.0), and composite `weighted_activity`. Excluded automated bots (`actor.login NOT LIKE '%[bot]'`), and fully baked these aggregated metrics into the warehouse table `build_or_borrow_dw.github_weekly_activity`.
 
-### **Current Event Query Audit ([`gh_archive.py`](file:///d:/Downloads/patchamomma/buildOrBorrow/backend/app/queries/gh_archive.py)):**
+### **Current Event Query Audit ([`gh_archive.py`](file:///c:/Users/tvars/OneDrive/Desktop/my_project/buildOrBorrow/backend/app/queries/gh_archive.py)):**
 The BigQuery query currently scans the following event types:
 
 ```sql
@@ -85,7 +85,7 @@ WHERE type IN ('PushEvent', 'PullRequestEvent', 'IssuesEvent', 'WatchEvent')
 
 > [!NOTE]
 > **Implementation Summary (Completed):**
-> Configured `DEFAULT_LOOKBACK_WEEKS = 104` in [`config.py`](file:///d:/Downloads/patchamomma/buildOrBorrow/backend/app/core/config.py) and connected backend directly to `project-bbc67fb6-4e57-4565-bb5.build_or_borrow_dw.github_weekly_activity` (17.3M rows, August 2024 to August 2026). Removed in-memory Python caching for stateless execution and implemented 0-byte inline UNNEST BigQuery ML `ARIMA_PLUS` training and inference.
+> Configured `DEFAULT_LOOKBACK_WEEKS = 104` in [`config.py`](file:///c:/Users/tvars/OneDrive/Desktop/my_project/buildOrBorrow/backend/app/core/config.py) and connected backend directly to `project-bbc67fb6-4e57-4565-bb5.build_or_borrow_dw.github_weekly_activity` (17.3M rows, August 2024 to August 2026). Removed in-memory Python caching for stateless execution and implemented 0-byte inline UNNEST BigQuery ML `ARIMA_PLUS` training and inference.
 
 ### **Rationale:**
 - **Why 104 Weeks (2 Years) is Required**: Short lookback windows (e.g. 5–12 weeks) fail for stable, mature packages (like `tone.js` or `feedparser`) where recent 3-month activity happens to be 0. A short lookback returns 0 events and causes the forecasting engine to output 0 activity.
@@ -107,7 +107,7 @@ WHERE type IN ('PushEvent', 'PullRequestEvent', 'IssuesEvent', 'WatchEvent')
 In **Task Requirement Mode**, the AI Candidate Finder selects 3 package candidates (1 primary candidate selected for deep pipeline evaluation + 2 runner-up candidates displayed as screening cards).
 
 ### **Proposed Enhancement:**
-- **"Run Evaluation Pipeline" Chip/Button**: Add a 1-click **`"Run Evaluation Pipeline for this Package"`** action button to the screening cards of the non-selected runner-up candidates in [`CandidateGrid.tsx`](file:///d:/Downloads/patchamomma/buildOrBorrow/frontend/src/components/verdict/CandidateGrid.tsx).
+- **"Run Evaluation Pipeline" Chip/Button**: Add a 1-click **`"Run Evaluation Pipeline for this Package"`** action button to the screening cards of the non-selected runner-up candidates in [`CandidateGrid.tsx`](file:///c:/Users/tvars/OneDrive/Desktop/my_project/buildOrBorrow/frontend/src/components/verdict/CandidateGrid.tsx).
 - **Execution Payload**:
   - `package_name` = Candidate package name (e.g., `faster-whisper`).
   - `system` = Current ecosystem (e.g., `pypi`).
@@ -116,9 +116,12 @@ In **Task Requirement Mode**, the AI Candidate Finder selects 3 package candidat
 
 ---
 
-## 6. 🛡️ Distinguish Active Unpatched CVEs (Latest Release) vs Historical Patched CVEs
+## 6. 🛡️ Distinguish Active Unpatched CVEs (Latest Release) vs Historical Patched CVEs [DONE ✅]
 
-### **Problem & Industry Context:**
+> [!NOTE]
+> **Implementation Summary (Completed):**
+> - **Version Scoped Advisory Breakdown**: Implemented `active_cves_on_current_version` and `patched_historical_cves` in [`deps_dev.py`](file:///c:/Users/tvars/OneDrive/Desktop/my_project/buildOrBorrow/backend/app/queries/deps_dev.py).
+> - **Stewardship Rule**: Historical patched CVEs are recognized as active security stewardship and permit **`BORROW`** when active CVEs on current release equal 0. Unpatched CVEs on the current release trigger safe version pinning or **`MIGRATE`**.
 Popular, foundational libraries (like `axios`, `express`, `lodash`, `requests`, `urllib3`) have been maintained for 10+ years. Over a decade, security researchers discover historical CVEs, which maintainers **promptly patch in subsequent releases**.
 - The presence of **historical patched CVEs** is a sign of **active security stewardship**, NOT a reason to abandon a library!
 - Only **active, unpatched CVEs on the current latest release** represent real security risk.
@@ -131,9 +134,14 @@ Popular, foundational libraries (like `axios`, `express`, `lodash`, `requests`, 
 
 ---
 
-## 7. 📌 Safe Version Pinning Strategy (0 Extra Queries In-Memory Implementation)
+## 7. 📌 Safe Version Pinning Strategy (0 Extra Queries In-Memory Implementation) [DONE ✅]
 
-### **Problem Statement:**
+> [!NOTE]
+> **Implementation Summary (Completed):**
+> - **In-Memory Safe Version Evaluation**: Added `query_package_version_history` and `find_safe_pinned_version` in [`deps_dev.py`](file:///c:/Users/tvars/OneDrive/Desktop/my_project/buildOrBorrow/backend/app/queries/deps_dev.py). Evaluates release history against `affected_version_ranges` with 0 extra BigQuery byte overhead.
+> - **SemVer Major Branch Constraint**: Restricts version recommendations strictly to the same Major version branch (e.g. `2.x.x`) to guarantee zero breaking API changes.
+> - **12-Month Recency Horizon**: Filters out release versions published > 365 days ago.
+> - **Verdict & UI Integration**: Updated Verdict Agent ([`verdict.py`](file:///c:/Users/tvars/OneDrive/Desktop/my_project/buildOrBorrow/backend/app/agents/verdict.py)) and UI Hero Card ([`VerdictCard.tsx`](file:///c:/Users/tvars/OneDrive/Desktop/my_project/buildOrBorrow/frontend/src/components/verdict/VerdictCard.tsx)) to display **`BORROW`** with a blue **`"Recommended Version Pin: vX.Y.Z"`** banner when a safe version exists, or fall back to **`MIGRATE`** if no clean version exists in the 12-month horizon.
 When the latest release version of a healthy package (e.g. `v2.4.0`) contains a newly reported vulnerability, how far back in version history should the system look to recommend a safe stable version?
 
 ### **Proposed Boundary Rules & 0-Extra-Query Implementation:**
@@ -195,7 +203,7 @@ When the latest release version of a healthy package (e.g. `v2.4.0`) contains a 
 
 > [!NOTE]
 > **Implementation Summary (Completed):**
-> Applied `/bigquery-sql` optimization techniques across [`queries/gh_archive.py`](file:///d:/Downloads/patchamomma/buildOrBorrow/backend/app/queries/gh_archive.py) and [`queries/deps_dev.py`](file:///d:/Downloads/patchamomma/buildOrBorrow/backend/app/queries/deps_dev.py). Pruned unnecessary columns, leveraged clustering index keys on `repo_name`, and eliminated the 7.8 GB multi-iteration `CREATE MODEL` scan cost by passing the in-memory 104 historical weeks directly as an inline parameter array into `CREATE OR REPLACE MODEL ... FROM UNNEST(@history)` (0 bytes billed for model fitting!).
+> Applied `/bigquery-sql` optimization techniques across [`queries/gh_archive.py`](file:///c:/Users/tvars/OneDrive/Desktop/my_project/buildOrBorrow/backend/app/queries/gh_archive.py) and [`queries/deps_dev.py`](file:///c:/Users/tvars/OneDrive/Desktop/my_project/buildOrBorrow/backend/app/queries/deps_dev.py). Pruned unnecessary columns, leveraged clustering index keys on `repo_name`, and eliminated the 7.8 GB multi-iteration `CREATE MODEL` scan cost by passing the in-memory 104 historical weeks directly as an inline parameter array into `CREATE OR REPLACE MODEL ... FROM UNNEST(@history)` (0 bytes billed for model fitting!).
 
 ### **Audit Analysis (Using `/bigquery-sql` Skill Rules):**
 1. **Column Pruning in `deps_dev.py`**: Prune unused `Version` column from `target_project` CTE in `query_package_resolution()`.
@@ -257,13 +265,13 @@ When a user asks for a trivial helper (e.g. *"left pad a string"*, *"slugify tex
 
 ### **Available Specialized Audit Workflows:**
 1. **`/ml-best-practices` (Machine Learning & Forecasting Audit)**:
-   - Audits statistical forecasting engine ([`forecasting.py`](file:///d:/Downloads/patchamomma/buildOrBorrow/backend/app/services/forecasting.py)), OLS trend slope calculations, 90-day confidence bounds, and ARIMA model accuracy metrics.
+   - Audits statistical forecasting engine ([`forecasting.py`](file:///c:/Users/tvars/OneDrive/Desktop/my_project/buildOrBorrow/backend/app/services/forecasting.py)), OLS trend slope calculations, 90-day confidence bounds, and ARIMA model accuracy metrics.
 2. **`/building-data-apps` (Full-Stack Data App Architecture)**:
    - Audits end-to-end data pipeline flow from BigQuery datasets $\rightarrow$ FastAPI backend $\rightarrow$ React Vite UI.
 3. **`/managing-python-dependencies` (Python Dependency Health)**:
-   - Scans backend Python requirements ([`requirements.txt`](file:///d:/Downloads/patchamomma/buildOrBorrow/backend/requirements.txt)) and virtual environment isolation.
+   - Scans backend Python requirements ([`requirements.txt`](file:///c:/Users/tvars/OneDrive/Desktop/my_project/buildOrBorrow/backend/requirements.txt)) and virtual environment isolation.
 4. **`/gcloud-auth-verification` (GCP Auth & BigQuery Quotas)**:
-   - Verifies Application Default Credentials (ADC), BigQuery authentication, project scoping, and query byte limits ([`bigquery.py`](file:///d:/Downloads/patchamomma/buildOrBorrow/backend/app/core/bigquery.py)).
+   - Verifies Application Default Credentials (ADC), BigQuery authentication, project scoping, and query byte limits ([`bigquery.py`](file:///c:/Users/tvars/OneDrive/Desktop/my_project/buildOrBorrow/backend/app/core/bigquery.py)).
 5. **`/discovering-gcp-data-assets` (GCP Data Asset Inspection)**:
    - Inspects schema definitions, table partitions, and cost bounds for `deps_dev_v1` and `githubarchive.month.*`.
 6. **`/chrome-devtools` & `/a11y-debugging` (Accessibility & Browser Performance Audit)**:
@@ -275,18 +283,18 @@ When a user asks for a trivial helper (e.g. *"left pad a string"*, *"slugify tex
 
 > [!NOTE]
 > **Implementation Summary (Completed):**
-> Declared `GITHUB_TOKEN: Optional[str] = None` in [`config.py`](file:///d:/Downloads/patchamomma/buildOrBorrow/backend/app/core/config.py#L56) and configured [`github_issues.py`](file:///d:/Downloads/patchamomma/buildOrBorrow/backend/app/services/github_issues.py#L55-L57) to attach `Authorization: Bearer <token>` to both Search and REST API calls. If `GITHUB_TOKEN` is present in `.env`, the rate limit jumps to 5,000 requests/hour; if absent, it safely falls back to unauthenticated public access.
+> Declared `GITHUB_TOKEN: Optional[str] = None` in [`config.py`](file:///c:/Users/tvars/OneDrive/Desktop/my_project/buildOrBorrow/backend/app/core/config.py#L56) and configured [`github_issues.py`](file:///c:/Users/tvars/OneDrive/Desktop/my_project/buildOrBorrow/backend/app/services/github_issues.py#L55-L57) to attach `Authorization: Bearer <token>` to both Search and REST API calls. If `GITHUB_TOKEN` is present in `.env`, the rate limit jumps to 5,000 requests/hour; if absent, it safely falls back to unauthenticated public access.
 
 ### **Problem Statement:**
-Currently, REST calls to the GitHub API (`api.github.com/repos/...` and `api.github.com/repos/.../issues`) in [`github_issues.py`](file:///d:/Downloads/patchamomma/buildOrBorrow/backend/app/services/github_issues.py) are sent unauthenticated.
+Currently, REST calls to the GitHub API (`api.github.com/repos/...` and `api.github.com/repos/.../issues`) in [`github_issues.py`](file:///c:/Users/tvars/OneDrive/Desktop/my_project/buildOrBorrow/backend/app/services/github_issues.py) are sent unauthenticated.
 
 ### **Rate Limit Risk:**
 - GitHub enforces a strict **60 requests/hour per IP address** rate limit for unauthenticated REST API calls.
 - In production or multi-user testing environments, running 15-20 searches quickly exhausts the 60-request quota, resulting in `HTTP 403 Rate Limit Exceeded` errors.
 
 ### **Proposed Enhancement:**
-- Add an optional `GITHUB_TOKEN: Optional[str] = None` setting in [`config.py`](file:///d:/Downloads/patchamomma/buildOrBorrow/backend/app/core/config.py).
-- In [`github_issues.py`](file:///d:/Downloads/patchamomma/buildOrBorrow/backend/app/services/github_issues.py), attach `headers={"Authorization": f"token {settings.GITHUB_TOKEN}"}` if configured.
+- Add an optional `GITHUB_TOKEN: Optional[str] = None` setting in [`config.py`](file:///c:/Users/tvars/OneDrive/Desktop/my_project/buildOrBorrow/backend/app/core/config.py).
+- In [`github_issues.py`](file:///c:/Users/tvars/OneDrive/Desktop/my_project/buildOrBorrow/backend/app/services/github_issues.py), attach `headers={"Authorization": f"token {settings.GITHUB_TOKEN}"}` if configured.
 - Attaching a GitHub Personal Access Token raises the API rate limit from **60 requests/hour to 5,000 requests/hour**!
 
 ---
@@ -295,13 +303,13 @@ Currently, REST calls to the GitHub API (`api.github.com/repos/...` and `api.git
 
 > [!NOTE]
 > **Implementation Summary (Completed):**
-> Implemented in [`backend/app/api/endpoints/evaluate.py`](file:///d:/Downloads/patchamomma/buildOrBorrow/backend/app/api/endpoints/evaluate.py#L349-L358). In Task Mode, after screening the 3 suggested candidate packages with `deps.dev`, the funnel filters `[cand for cand, screen in zip(candidate_list, screenings) if screen.verified_exists]`. Only packages verified to exist in the registry are chosen as the primary candidate for deep evaluation.
+> Implemented in [`backend/app/api/endpoints/evaluate.py`](file:///c:/Users/tvars/OneDrive/Desktop/my_project/buildOrBorrow/backend/app/api/endpoints/evaluate.py#L349-L358). In Task Mode, after screening the 3 suggested candidate packages with `deps.dev`, the funnel filters `[cand for cand, screen in zip(candidate_list, screenings) if screen.verified_exists]`. Only packages verified to exist in the registry are chosen as the primary candidate for deep evaluation.
 
 ### **Problem Statement:**
 In Task Requirement Mode, the Candidate Finder LLM occasionally suggests candidate package names that do not exist on the target ecosystem registry (PyPI/NPM), returning `verified_exists: false` (e.g. `add2ints`, `mathutils-plus`, `simple-adder`).
 
 ### **Proposed Enhancement:**
-- **Existence Filter**: In [`candidate_finder.py`](file:///d:/Downloads/patchamomma/buildOrBorrow/backend/app/agents/candidate_finder.py), filter the screened candidate list to ensure `verified_exists == True` before selecting a primary package for deep pipeline evaluation.
+- **Existence Filter**: In [`candidate_finder.py`](file:///c:/Users/tvars/OneDrive/Desktop/my_project/buildOrBorrow/backend/app/agents/candidate_finder.py), filter the screened candidate list to ensure `verified_exists == True` before selecting a primary package for deep pipeline evaluation.
 - **Micro-Task Fallback**: If 0 candidates have `verified_exists == True`, automatically trigger the **Native Micro-Task Fast-Path** (Item 10) to issue **`BUILD`** without running deep pipeline evaluations on fake package names.
 
 ---
