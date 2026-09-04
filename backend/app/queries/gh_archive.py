@@ -1,14 +1,10 @@
 import logging
 from typing import Optional, Dict, Any, List
-from datetime import datetime, timedelta, timezone
 from google.cloud import bigquery
 from app.core.bigquery import execute_safe_query, get_bigquery_client
 from app.core.config import settings
 
 logger = logging.getLogger(__name__)
-
-# In-Memory LRU Cache for GH Archive Queries (Key: repo_name_lookback_weeks -> List[Dict])
-_GH_ARCHIVE_CACHE: Dict[str, List[Dict[str, Any]]] = {}
 
 
 def query_github_weekly_activity(
@@ -18,58 +14,51 @@ def query_github_weekly_activity(
     lookback_weeks: int = settings.DEFAULT_LOOKBACK_WEEKS
 ) -> List[Dict[str, Any]]:
     """
-    Query GH Archive weekly activity using month-granularity partitions (`githubarchive.month.*`).
-    Scanning 24 monthly tables instead of ~730 daily tables slashes per-table metadata & scan overhead by ~95%.
-    Uses integer actor.id scanning and in-memory LRU caching to minimize byte consumption.
+    Query historical weekly GitHub activity from the custom pre-aggregated data warehouse
+    (`build_or_borrow_dw.github_weekly_activity`).
+    
+    The custom table stores 104 continuous weeks of activity partitioned by `week_start`
+    and clustered by `repo_name`.
+
+    POST-MVP DELTA REFRESH REFERENCE:
+    --------------------------------
+    For ongoing weekly maintenance post-MVP, an automated Cloud Scheduler / Cron job can append
+    new activity and prune records older than 104 weeks:
+      1. INSERT INTO `build_or_borrow_dw.github_weekly_activity`
+         SELECT ... FROM `githubarchive.day.*` WHERE _TABLE_SUFFIX = FORMAT_DATE('%Y%m%d', CURRENT_DATE() - 1)
+      2. DELETE FROM `build_or_borrow_dw.github_weekly_activity`
+         WHERE week_start < DATE_SUB(CURRENT_DATE(), INTERVAL 104 WEEK)
     """
     bq_client = client or get_bigquery_client()
     full_repo_name = f"{repo_owner}/{repo_name}".strip().lower()
 
-    cache_key = f"{full_repo_name}_{lookback_weeks}"
-    if cache_key in _GH_ARCHIVE_CACHE:
-        logger.info(f"   [GH Archive Cache HIT] Returning cached activity for '{full_repo_name}' (0 MB scanned)")
-        return _GH_ARCHIVE_CACHE[cache_key]
-    
-    end_date = datetime.now(timezone.utc).date()
-    start_date = end_date - timedelta(weeks=lookback_weeks)
-    
-    # Format YYYYMM for githubarchive.month.* table suffix filtering
-    start_suffix = start_date.strftime('%Y%m')
-    end_suffix = end_date.strftime('%Y%m')
-    
-    logger.info(f"   [GH Archive Query] Scanning monthly tables ({start_suffix} to {end_suffix}) for '{full_repo_name}'...")
+    custom_table = f"`{settings.CUSTOM_BQ_PROJECT}.{settings.CUSTOM_BQ_DATASET}.{settings.CUSTOM_BQ_TABLE}`"
+    logger.info(f"   [GH Warehouse Query] Reading 104-week activity for '{full_repo_name}' from {custom_table}...")
 
-    # Optimized SQL using githubarchive.month.* (24 table objects instead of 730):
+    # Direct indexed lookup on clustered custom warehouse:
     query = f"""
     SELECT
-      TIMESTAMP_TRUNC(created_at, WEEK) AS week_start,
-      COUNTIF(type = 'PushEvent') AS push_events,
-      COUNTIF(type = 'PullRequestEvent') AS pr_events,
-      COUNTIF(type = 'IssuesEvent') AS issue_events,
-      COUNTIF(type = 'WatchEvent') AS star_events,
-      COUNT(DISTINCT actor.id) AS active_contributors,
-      COUNT(1) AS total_events,
-      CAST(
-        (COUNTIF(type = 'PushEvent') * 3.0) +
-        (COUNTIF(type = 'PullRequestEvent') * 2.0) +
-        (COUNTIF(type = 'IssuesEvent') * 1.0)
-        AS FLOAT64
-      ) AS weighted_activity
+      week_start,
+      push_events,
+      create_events,
+      pr_events,
+      comment_events,
+      issue_events,
+      star_events,
+      active_contributors,
+      total_events,
+      weighted_activity
     FROM
-      `githubarchive.month.*`
+      {custom_table}
     WHERE
-      _TABLE_SUFFIX BETWEEN '{start_suffix}' AND '{end_suffix}'
-      AND repo.name = @repo_name
-      AND type IN ('PushEvent', 'PullRequestEvent', 'IssuesEvent', 'WatchEvent')
-    GROUP BY
-      week_start
+      repo_name = @repo_name
     ORDER BY
       week_start ASC
     """
     
     job_config = bigquery.QueryJobConfig(
         query_parameters=[
-            bigquery.ScalarQueryParameter("repo_name", "STRING", f"{repo_owner}/{repo_name}")
+            bigquery.ScalarQueryParameter("repo_name", "STRING", full_repo_name)
         ]
     )
     
@@ -77,19 +66,20 @@ def query_github_weekly_activity(
     
     results = [
         {
-            "week_start": row.week_start.isoformat() if row.week_start else None,
+            "week_start": row.week_start.isoformat() if hasattr(row.week_start, "isoformat") else str(row.week_start),
             "push_events": row.push_events,
+            "create_events": getattr(row, "create_events", 0),
             "pr_events": row.pr_events,
+            "comment_events": getattr(row, "comment_events", 0),
             "issue_events": row.issue_events,
             "star_events": row.star_events,
             "active_contributors": row.active_contributors,
             "total_events": row.total_events,
-            "weighted_activity": row.weighted_activity,
+            "weighted_activity": float(row.weighted_activity) if row.weighted_activity is not None else 0.0,
         }
         for row in rows
     ]
 
-    _GH_ARCHIVE_CACHE[cache_key] = results
     return results
 
 
@@ -98,57 +88,84 @@ def query_arima_plus_forecast(
     repo_owner: str = "",
     repo_name: str = "",
     lookback_weeks: int = settings.DEFAULT_LOOKBACK_WEEKS,
-    forecast_weeks: int = settings.DEFAULT_FORECAST_WEEKS
+    forecast_weeks: int = settings.DEFAULT_FORECAST_WEEKS,
+    weekly_history: Optional[List[Dict[str, Any]]] = None
 ) -> List[Dict[str, Any]]:
     """
-    Executes BigQuery ML ARIMA_PLUS forecast on GH Archive weekly weighted activity.
-    Step 1: Trains a per-repo ARIMA_PLUS model in user dataset (`buildorborrow.forecast_{owner}_{repo}`).
-    Step 2: Calls ML.FORECAST on the trained model with 90% confidence bounds.
-    Falls back gracefully if BigQuery ML dataset is unconfigured or permissions are restricted.
+    Executes real BigQuery ML ARIMA_PLUS forecast on weekly weighted activity.
+    Step 1: Trains a per-repo ARIMA_PLUS model in dataset (`build_or_borrow_dw.forecast_{safe_owner}_{safe_repo}`).
+            When `weekly_history` is supplied, it trains via an inline UNNEST parameter (0 bytes scanned).
+    Step 2: Calls ML.FORECAST on the trained model with 90% statistical confidence bounds.
+    Falls back gracefully if BigQuery ML dataset encounters permission or timeout constraints.
     """
     bq_client = client or get_bigquery_client()
-    full_repo_name = f"{repo_owner}/{repo_name}"
-    safe_name = f"{repo_owner}_{repo_name}".replace("-", "_").replace(".", "_").lower()
-    
-    project_id = settings.get_gcp_project() or "project-d8b4c833-4a30-41ee-89a"
-    model_identifier = f"`{project_id}.buildorborrow.forecast_{safe_name}`"
+    full_repo_name = f"{repo_owner}/{repo_name}".strip().lower()
 
-    end_date = datetime.now(timezone.utc).date()
-    start_date = end_date - timedelta(weeks=lookback_weeks)
-    
-    start_suffix = start_date.strftime('%Y%m')
-    end_suffix = end_date.strftime('%Y%m')
-    
-    # Step 1: SQL to extract weekly training dataset from monthly tables
-    historical_weekly_sql = f"""
-      SELECT
-        TIMESTAMP_TRUNC(created_at, WEEK) AS week_start,
-        CAST(
-          (COUNTIF(type = 'PushEvent') * 3.0) +
-          (COUNTIF(type = 'PullRequestEvent') * 2.0) +
-          (COUNTIF(type = 'IssuesEvent') * 1.0)
-          AS FLOAT64
-        ) AS weighted_activity
-      FROM
-        `githubarchive.month.*`
-      WHERE
-        _TABLE_SUFFIX BETWEEN '{start_suffix}' AND '{end_suffix}'
-        AND repo.name = @repo_name
-        AND type IN ('PushEvent', 'PullRequestEvent', 'IssuesEvent', 'WatchEvent')
-      GROUP BY
-        week_start
-    """
+    # Collision-safe identifier combining owner and repo name
+    safe_owner = repo_owner.replace("-", "_").replace(".", "_").lower()
+    safe_repo = repo_name.replace("-", "_").replace(".", "_").lower()
+    model_name = f"forecast_{safe_owner}_{safe_repo}"
+    model_identifier = f"`{settings.CUSTOM_BQ_PROJECT}.{settings.CUSTOM_BQ_DATASET}.{model_name}`"
 
-    create_model_sql = f"""
-    CREATE OR REPLACE MODEL {model_identifier}
-    OPTIONS(
-      model_type = 'ARIMA_PLUS',
-      time_series_timestamp_col = 'week_start',
-      time_series_data_col = 'weighted_activity'
-    ) AS
-    {historical_weekly_sql}
-    """
+    # Step 1: SQL to train ARIMA_PLUS model
+    if weekly_history and len(weekly_history) >= 10:
+        # Zero-scan inline training using UNNEST array:
+        create_model_sql = f"""
+        CREATE OR REPLACE MODEL {model_identifier}
+        OPTIONS(
+          model_type = 'ARIMA_PLUS',
+          time_series_timestamp_col = 'week_start',
+          time_series_data_col = 'weighted_activity',
+          horizon = {forecast_weeks}
+        ) AS
+        SELECT
+          PARSE_TIMESTAMP('%Y-%m-%d', SUBSTR(week_start, 1, 10)) AS week_start,
+          weighted_activity
+        FROM
+          UNNEST(@history)
+        """
+        struct_list = [
+            bigquery.StructQueryParameter(
+                "item",
+                bigquery.ScalarQueryParameter("week_start", "STRING", str(r.get("week_start", ""))[:10]),
+                bigquery.ScalarQueryParameter("weighted_activity", "FLOAT64", float(r.get("weighted_activity", 0.0)))
+            )
+            for r in weekly_history
+            if r.get("week_start")
+        ]
+        train_job_config = bigquery.QueryJobConfig(
+            query_parameters=[
+                bigquery.ArrayQueryParameter("history", "RECORD", struct_list)
+            ]
+        )
+    else:
+        # Fallback to direct warehouse table query
+        custom_table = f"`{settings.CUSTOM_BQ_PROJECT}.{settings.CUSTOM_BQ_DATASET}.{settings.CUSTOM_BQ_TABLE}`"
+        create_model_sql = f"""
+        CREATE OR REPLACE MODEL {model_identifier}
+        OPTIONS(
+          model_type = 'ARIMA_PLUS',
+          time_series_timestamp_col = 'week_start',
+          time_series_data_col = 'weighted_activity',
+          horizon = {forecast_weeks}
+        ) AS
+        SELECT
+          TIMESTAMP(week_start) AS week_start,
+          weighted_activity
+        FROM
+          {custom_table}
+        WHERE
+          repo_name = @repo_name
+        ORDER BY
+          week_start ASC
+        """
+        train_job_config = bigquery.QueryJobConfig(
+            query_parameters=[
+                bigquery.ScalarQueryParameter("repo_name", "STRING", full_repo_name)
+            ]
+        )
 
+    # Step 2: SQL to generate 13-week forecast with 90% confidence intervals
     forecast_sql = f"""
     SELECT
       forecast_timestamp AS week_start,
@@ -163,23 +180,17 @@ def query_arima_plus_forecast(
     ORDER BY
       week_start ASC
     """
-    
-    job_config = bigquery.QueryJobConfig(
-        query_parameters=[
-            bigquery.ScalarQueryParameter("repo_name", "STRING", full_repo_name)
-        ]
-    )
 
     try:
         logger.info(f"   [BQ ML ARIMA] Step 1: Training ARIMA_PLUS model {model_identifier}...")
-        execute_safe_query(bq_client, create_model_sql, job_config=job_config, max_allowed_mb=settings.BQ_GH_ARCHIVE_MAX_ALLOWED_MB)
+        execute_safe_query(bq_client, create_model_sql, job_config=train_job_config, max_allowed_mb=settings.BQ_GH_ARCHIVE_MAX_ALLOWED_MB)
         
         logger.info(f"   [BQ ML ARIMA] Step 2: Executing ML.FORECAST horizon={forecast_weeks} wks...")
-        rows = execute_safe_query(bq_client, forecast_sql, job_config=job_config, max_allowed_mb=settings.BQ_GH_ARCHIVE_MAX_ALLOWED_MB)
+        rows = execute_safe_query(bq_client, forecast_sql, max_allowed_mb=settings.BQ_GH_ARCHIVE_MAX_ALLOWED_MB)
         
         return [
             {
-                "week_start": row.week_start.isoformat() if row.week_start else None,
+                "week_start": row.week_start.isoformat() if hasattr(row.week_start, "isoformat") else str(row.week_start),
                 "projected_events": row.projected_events,
                 "confidence_lower": row.confidence_lower,
                 "confidence_upper": row.confidence_upper,
@@ -187,5 +198,5 @@ def query_arima_plus_forecast(
             for row in rows
         ]
     except Exception as e:
-        logger.warning(f"BigQuery ML ARIMA forecast failed or unconfigured ({e}). Falling back to statistical series forecasting.")
+        logger.warning(f"BigQuery ML ARIMA forecast failed ({e}). Falling back to statistical series forecasting.")
         return []

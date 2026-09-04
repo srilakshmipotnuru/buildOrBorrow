@@ -9,7 +9,7 @@ from app.core.config import settings
 from app.models.deps_dev import PackageResolutionResponse, SecurityContextResponse
 from app.models.forecast import ForecastAnalysis
 from app.queries.deps_dev import query_package_resolution, query_security_and_dependencies
-from app.queries.gh_archive import query_github_weekly_activity
+from app.queries.gh_archive import query_github_weekly_activity, query_arima_plus_forecast
 from app.services.forecasting import project_weekly_series
 from app.services.github_issues import fetch_recent_github_issues
 from app.services.alternative_verifier import verify_alternative_package
@@ -173,17 +173,60 @@ def evaluate_single_package_pipeline(
             except Exception as e:
                 logger.warning(f"GitHub issue/README/metadata fetch failed for {owner}/{repo}: {e}")
 
-            # Query GH Archive weekly activity
+            # Query GH Archive weekly activity from custom warehouse
             try:
                 raw_weekly_data = query_github_weekly_activity(
                     client=get_bigquery_client(), repo_owner=owner, repo_name=repo, lookback_weeks=settings.DEFAULT_LOOKBACK_WEEKS
                 )
                 if raw_weekly_data:
-                    forecast_results = project_weekly_series(raw_weekly_data, forecast_weeks=settings.DEFAULT_FORECAST_WEEKS)
-                    logger.info(f"   ✔ GH Archive Scan  : Analyzed {len(raw_weekly_data)} weeks of activity for {owner}/{repo}")
-                    logger.info(f"   ✔ Forecast Result  : Trend {forecast_results.get('trend_direction')} | Health Score: {forecast_results.get('health_score')}/100 | Signal: {forecast_results.get('maintenance_verdict_signal')}")
+                    # Item 1: Zero-Activity Guard
+                    total_maintenance_events = sum(item.get("total_events", 0) for item in raw_weekly_data)
+                    if total_maintenance_events == 0:
+                        logger.info(f"   [Zero Activity] {owner}/{repo} has 0 events across 104 weeks. Bypassing ARIMA fitting.")
+                        forecast_results = {
+                            "projected_timeline": [],
+                            "trend_direction": "DECLINING",
+                            "health_score": 0.0,
+                            "projected_total_events_90d": 0,
+                            "maintenance_verdict_signal": "AT_RISK_STAGNANT"
+                        }
+                    else:
+                        # Primary Engine: Real BigQuery ML ARIMA_PLUS
+                        if getattr(settings, "ENABLE_BQ_ML_ARIMA", True):
+                            try:
+                                arima_timeline = query_arima_plus_forecast(
+                                    client=get_bigquery_client(),
+                                    repo_owner=owner,
+                                    repo_name=repo,
+                                    lookback_weeks=settings.DEFAULT_LOOKBACK_WEEKS,
+                                    forecast_weeks=settings.DEFAULT_FORECAST_WEEKS,
+                                    weekly_history=raw_weekly_data
+                                )
+                                if arima_timeline:
+                                    projected_total = sum(p.get("projected_events", 0) for p in arima_timeline)
+                                    slope = (arima_timeline[-1]["projected_events"] - arima_timeline[0]["projected_events"]) / len(arima_timeline) if len(arima_timeline) > 1 else 0
+                                    trend = "ACCELERATING" if slope > 0.5 else ("DECLINING" if slope < -0.5 else "STABLE")
+                                    health_score = min(100.0, max(0.0, (projected_total / settings.DEFAULT_FORECAST_WEEKS) * 8.0 + (30.0 if trend == "ACCELERATING" else 15.0)))
+                                    signal = "HEALTHY_ACTIVE" if health_score >= 60 else ("SLOW_MAINTENANCE" if health_score >= 30 else "AT_RISK_STAGNANT")
+                                    forecast_results = {
+                                        "projected_timeline": arima_timeline,
+                                        "trend_direction": trend,
+                                        "health_score": round(health_score, 1),
+                                        "projected_total_events_90d": projected_total,
+                                        "maintenance_verdict_signal": signal
+                                    }
+                                    logger.info(f"   ✔ BQ ML ARIMA_PLUS : Generated 90-day forecast for {owner}/{repo} (Trend: {trend}, Health: {health_score}/100)")
+                            except Exception as arima_err:
+                                logger.warning(f"BigQuery ML ARIMA_PLUS forecast failed ({arima_err}). Falling back to statistical series.")
+
+                        # Backup Engine: Statistical series forecasting in Python
+                        if not forecast_results:
+                            forecast_results = project_weekly_series(raw_weekly_data, forecast_weeks=settings.DEFAULT_FORECAST_WEEKS)
+                            logger.info(f"   ✔ Statistical Fallback : Trend {forecast_results.get('trend_direction')} | Health Score: {forecast_results.get('health_score')}/100")
+
+                    logger.info(f"   ✔ GH Warehouse Scan: Analyzed {len(raw_weekly_data)} weeks of activity for {owner}/{repo}")
             except Exception as e:
-                logger.warning(f"GH Archive query skipped or failed for {owner}/{repo}: {e}")
+                logger.warning(f"GH Warehouse query skipped or failed for {owner}/{repo}: {e}")
 
     historical_summary = {
         "data_retrieved": bool(raw_weekly_data),

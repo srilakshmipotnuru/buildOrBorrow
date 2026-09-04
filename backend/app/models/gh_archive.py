@@ -7,11 +7,14 @@ from app.core.config import settings
 class WeeklyActivity(BaseModel):
     week_start: str = ""
     push_events: int = Field(default=0, ge=0)
+    create_events: int = Field(default=0, ge=0)
     pr_events: int = Field(default=0, ge=0)
+    comment_events: int = Field(default=0, ge=0)
     issue_events: int = Field(default=0, ge=0)
     star_events: int = Field(default=0, ge=0)
     active_contributors: int = Field(default=0, ge=0)
     total_events: int = Field(default=0, ge=0)
+    weighted_activity: float = Field(default=0.0, ge=0.0)
 
 
 class GitHubActivitySummary(BaseModel):
