@@ -22,7 +22,7 @@ Currently, when a repository has 0 commits or 0 developer events across the hist
 
 ---
 
-## 2. 🏷️ GitHub Public "Archived" Tag Detection (`archived == True`)
+## 2. 🏷️ GitHub Public "Archived" Tag Detection (`archived == True`) (Done ✅)
 
 ### **Problem Statement:**
 GitHub allows repository owners to mark a repository as officially **Archived** (read-only mode). An archived repository is a 100% definitive, deterministic signal that the project has stopped maintenance permanently and will never receive security patches or feature updates.
@@ -143,7 +143,7 @@ When the latest release version of a healthy package (e.g. `v2.4.0`) contains a 
 
 ---
 
-## 8. 🤖 Eliminate Hardcoded AI Interceptors & Replace Static Lists with Dynamic LLM Classification
+## 8. 🤖 Eliminate Hardcoded AI Interceptors & Replace Static Lists with Dynamic LLM Classification (Done ✅)
 
 ### **Problem Statement:**
 1. **Active AI Interceptor in `verdict.py` (Line 235)**:
