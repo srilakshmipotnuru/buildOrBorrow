@@ -24,7 +24,8 @@ def diagnose_package(
     forecast_analysis: Dict[str, Any],
     recent_issues: List[Dict[str, Any]],
     readme_context: Optional[Dict[str, Any]] = None,
-    security_context: Optional[Dict[str, Any]] = None
+    security_context: Optional[Dict[str, Any]] = None,
+    package_resolution: Optional[Dict[str, Any]] = None
 ) -> DiagnosisResponse:
     """
     Diagnosis Agent:
@@ -35,6 +36,12 @@ def diagnose_package(
     """
     readme_info = readme_context or {}
     sec_info = security_context or {}
+    resolution_info = package_resolution or {}
+    system_name = resolution_info.get("system", "UNKNOWN")
+    github_repo_url = resolution_info.get("github_url", "N/A")
+    project_repo_name = resolution_info.get("project_name", package_name)
+    stargazers = resolution_info.get("stargazers_count", 0)
+    dependents = resolution_info.get("dependents_count", 0)
 
     def _rule_based_fallback() -> DiagnosisResponse:
         logger.warning(f"   [Diagnosis Fallback] Executing production-grade rule-based diagnosis for '{package_name}'...")
@@ -132,7 +139,12 @@ def diagnose_package(
 
         prompt = (
             f"You are an expert AI Software Health & Maintenance Diagnostic Agent.\n"
-            f"Package Name: '{package_name}'\n\n"
+            f"ECOSYSTEM & REPOSITORY GROUNDING:\n"
+            f"- Target Ecosystem Registry: {system_name}\n"
+            f"- Package Name: '{package_name}'\n"
+            f"- Target Repository: {github_repo_url} ({project_repo_name})\n"
+            f"- Repository Stars: {stargazers}\n"
+            f"- Downstream Dependent Projects: {dependents}\n\n"
             f"QUANTITATIVE METRICS:\n"
             f"{data_status_str}"
             f"- 90-Day Trend Direction: {forecast_analysis.get('trend_direction', 'STABLE')}\n"
@@ -142,14 +154,16 @@ def diagnose_package(
             f"{formatted_issue_list}\n\n"
             f"DIAGNOSIS INSTRUCTIONS:\n"
             f"1. CRITICAL DISTINCTION - MATURE BEDROCK vs ABANDONED:\n"
-            f"   - If a package is a widely-used foundational bedrock library (e.g., requests, lodash, numpy, urllib3, pandas) with high usage and zero critical CVEs, low recent commit velocity reflects API STABILITY ('MATURE_STABLE'), NOT project abandonment.\n"
-            f"   - Only diagnose ABANDONED_STRUGGLING if there are unaddressed open critical CVEs, broken CI, or an explicit deprecation/archival notice.\n"
+            f"   - Evaluate ONLY the specific target repository '{project_repo_name}' on system '{system_name}'. DO NOT conflate packages across different ecosystems (e.g. do NOT confuse an obscure PyPI package with a famous NPM package of the same name).\n"
+            f"   - A package can ONLY be classified as MATURE_STABLE (Bedrock) if it has empirical proof of high adoption (e.g. high dependents count, high star count, or verified foundational usage in system '{system_name}') AND zero critical CVEs/crash bugs.\n"
+            f"   - If target repository adoption metrics (stars/dependents) AND commit activity are low or zero, DO NOT excuse zero activity as 'API stability'. Classify as ABANDONED_STRUGGLING or UNCERTAIN_UNVERIFIED.\n"
             f"2. SUPERSEDED / RENAMED PACKAGES:\n"
             f"   - If the package is officially deprecated, renamed, or replaced (e.g. pep8 -> pycodestyle, requests-async -> httpx, nomurl -> urllib3), classify it as ABANDONED_STRUGGLING and set is_abandoned=true.\n"
-            f"3. Classify into one of 4 statuses:\n"
-            f"   - MATURE_STABLE: API-complete bedrock package, low/steady churn, 0 critical bugs/CVEs.\n"
+            f"3. Classify into one of 5 statuses:\n"
+            f"   - MATURE_STABLE: API-complete bedrock package with verified high adoption, low/steady churn, 0 critical bugs/CVEs.\n"
             f"   - MAINTAINED_ACTIVE: Active commits, regular releases, healthy issue resolution.\n"
-            f"   - ABANDONED_STRUGGLING: Unmaintained/deprecated package or low commits AND active unresolved crash bugs.\n"
+            f"   - ABANDONED_STRUGGLING: Unmaintained/deprecated package, or obscure low-usage package with stagnant activity.\n"
+            f"   - UNCERTAIN_UNVERIFIED: Unverified telemetry or missing repository metadata.\n"
             f"   - VULNERABLE: Severe unresolved security vulnerabilities (CVEs) or active security advisories.\n"
             f"4. Set is_abandoned to true ONLY if status is ABANDONED_STRUGGLING or VULNERABLE.\n"
             f"5. Assign a confidence_score (0.0 to 1.0) and detailed explanation."

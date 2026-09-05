@@ -1,6 +1,7 @@
 import React from 'react';
 import { Package, ExternalLink, CheckCircle2, AlertCircle, PlayCircle, Loader2 } from 'lucide-react';
 import type { CandidateScreeningItem } from '../../types/api';
+import { isCandidateCachedInSession } from '../../services/sessionCache';
 import './CandidateGrid.css';
 
 interface CandidateGridProps {
@@ -9,7 +10,6 @@ interface CandidateGridProps {
   primaryPackageName: string;
   onEvaluateCandidate?: (packageName: string, system: string) => void;
   evaluatingPackageName?: string | null;
-  evaluatedCacheKeys?: Set<string>;
 }
 
 export const CandidateGrid: React.FC<CandidateGridProps> = ({
@@ -18,7 +18,6 @@ export const CandidateGrid: React.FC<CandidateGridProps> = ({
   primaryPackageName,
   onEvaluateCandidate,
   evaluatingPackageName,
-  evaluatedCacheKeys,
 }) => {
   return (
     <div className="candidate-grid-card">
@@ -37,8 +36,7 @@ export const CandidateGrid: React.FC<CandidateGridProps> = ({
           const isPrimary = cand.name.toLowerCase() === primaryPackageName.toLowerCase();
           const isEvaluatingThis =
             evaluatingPackageName && evaluatingPackageName.toLowerCase() === cand.name.toLowerCase();
-          const cacheKey = `${cand.system.toLowerCase()}:${cand.name.toLowerCase()}`;
-          const isCached = evaluatedCacheKeys ? evaluatedCacheKeys.has(cacheKey) : false;
+          const isCached = isCandidateCachedInSession(cand.system, cand.name, taskDescription);
 
           return (
             <div

@@ -160,6 +160,7 @@ def evaluate_single_package_pipeline(
         "maintenance_verdict_signal": "UNAVAILABLE"
     }
     recent_issues = []
+    readme_context = {}
 
     if github_url:
         parsed = extract_github_owner_repo(github_url)
@@ -250,7 +251,10 @@ def evaluate_single_package_pipeline(
         package_name=package_name,
         historical_summary=historical_summary,
         forecast_analysis=forecast_results,
-        recent_issues=recent_issues
+        recent_issues=recent_issues,
+        readme_context=readme_context,
+        security_context=security_dict,
+        package_resolution=resolution_dict
     )
     logger.info(f"   ✔ Diagnosis Result : Status '{diagnosis_model.status}' (Abandoned: {diagnosis_model.is_abandoned})")
 
