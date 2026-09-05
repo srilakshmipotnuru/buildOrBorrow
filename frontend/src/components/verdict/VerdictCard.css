@@ -80,6 +80,19 @@
   color: var(--text-800);
 }
 
+.fastpath-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  padding: 0.45rem 0.9rem;
+  border-radius: 9999px;
+  background: #fef3c7;
+  border: 1px solid #f59e0b;
+  color: #92400e;
+  font-size: 0.85rem;
+  font-weight: 700;
+}
+
 .conf-icon {
   width: 16px;
   height: 16px;
@@ -146,6 +159,16 @@
   font-size: 0.975rem;
   color: var(--text-600);
   margin: 0 0 1.25rem 0;
+}
+
+.task-requirement-context {
+  padding: 0.75rem 1rem;
+  border-radius: 8px;
+  background: var(--primary-50);
+  border: 1px solid var(--primary-200);
+  color: var(--primary-900);
+  font-size: 0.95rem;
+  margin-bottom: 1rem;
 }
 
 /* Specific Action Boxes */

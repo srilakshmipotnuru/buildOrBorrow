@@ -154,12 +154,13 @@ def evaluate_single_package_pipeline(
     raw_weekly_data = []
     forecast_results = {
         "projected_timeline": [],
-        "trend_direction": "STABLE",
-        "health_score": 75.0,
-        "projected_total_events_90d": 120,
-        "maintenance_verdict_signal": "HEALTHY_ACTIVE"
+        "trend_direction": "UNAVAILABLE",
+        "health_score": 0.0,
+        "projected_total_events_90d": 0,
+        "maintenance_verdict_signal": "UNAVAILABLE"
     }
     recent_issues = []
+    readme_context = {}
 
     if github_url:
         parsed = extract_github_owner_repo(github_url)
@@ -250,7 +251,10 @@ def evaluate_single_package_pipeline(
         package_name=package_name,
         historical_summary=historical_summary,
         forecast_analysis=forecast_results,
-        recent_issues=recent_issues
+        recent_issues=recent_issues,
+        readme_context=readme_context,
+        security_context=security_dict,
+        package_resolution=resolution_dict
     )
     logger.info(f"   ✔ Diagnosis Result : Status '{diagnosis_model.status}' (Abandoned: {diagnosis_model.is_abandoned})")
 
@@ -343,25 +347,17 @@ def evaluate_pipeline(request: EvaluationRequest):
         
         builder_res = generate_custom_build(
             user_requirement=task_input,
-            package_name="custom-utility",
+            package_name=task_input,
             system=system_input
         )
         
         fast_path_eval = PackageEvaluationDetail(
-            package_name="in-house-utility",
+            package_name=task_input,
             system=system_input,
             github_url=None,
             repo_owner=None,
             repo_name=None,
-            resolution=PackageResolutionResponse(
-                name="in-house-utility",
-                system=system_input,
-                version="1.0.0",
-                project_name="in-house-utility",
-                licenses=["MIT"],
-                github_url=None,
-                published_at=None
-            ),
+            resolution=None,
             security=SecurityContextResponse(
                 critical_vulnerabilities=0,
                 high_vulnerabilities=0,
@@ -376,10 +372,10 @@ def evaluate_pipeline(request: EvaluationRequest):
             ),
             forecast=ForecastAnalysis(
                 projected_timeline=[],
-                trend_direction="STABLE",
+                trend_direction="NOT_APPLICABLE",
                 health_score=100.0,
                 projected_total_events_90d=0,
-                maintenance_verdict_signal="HEALTHY_ACTIVE"
+                maintenance_verdict_signal="IN_HOUSE_BUILD"
             ),
             recent_issues=[],
             diagnosis=DiagnosisResponse(
@@ -442,10 +438,135 @@ def evaluate_pipeline(request: EvaluationRequest):
     ]
 
     if not verified_candidates:
-        logger.warning(f"None of the suggested candidates for task '{task_input}' were verified in deps.dev dataset.")
-        primary_cand = candidate_list[0]
-    else:
-        primary_cand = verified_candidates[0]
+        logger.warning(f"None of the suggested candidates for task '{task_input}' were verified in {system_input} registry.")
+        
+        # Task Scale Guard: Distinguish Micro-Tasks from Complex Tasks
+        if is_micro_utility_requirement(task_input):
+            logger.info(f"⚡ [Task Scale Guard] Unverified candidates for micro-utility task '{task_input}'. Issuing BUILD verdict.")
+            builder_res = generate_custom_build(
+                user_requirement=task_input,
+                package_name=task_input,
+                system=system_input
+            )
+            unverified_eval = PackageEvaluationDetail(
+                package_name=task_input,
+                system=system_input,
+                github_url=None,
+                repo_owner=None,
+                repo_name=None,
+                resolution=None,
+                security=SecurityContextResponse(
+                    critical_vulnerabilities=0,
+                    high_vulnerabilities=0,
+                    medium_vulnerabilities=0,
+                    low_vulnerabilities=0,
+                    unknown_vulnerabilities=0,
+                    total_vulnerabilities=0,
+                    direct_dependencies=0,
+                    transitive_dependencies=0,
+                    license="Zero External Dependencies",
+                    is_current_version_vulnerable=False
+                ),
+                forecast=ForecastAnalysis(
+                    projected_timeline=[],
+                    trend_direction="UNAVAILABLE",
+                    health_score=0.0,
+                    projected_total_events_90d=0,
+                    maintenance_verdict_signal="UNAVAILABLE"
+                ),
+                recent_issues=[],
+                diagnosis=DiagnosisResponse(
+                    status="UNCERTAIN_UNVERIFIED",
+                    is_abandoned=False,
+                    confidence_score=0.5,
+                    confidence_reason="Candidate packages could not be verified in registry. Micro-utility requirement detected.",
+                    bug_severity_assessment="No verified registry telemetry.",
+                    explanation=f"Suggested candidate packages were unverified in the {system_input} registry. Because '{task_input}' is a lightweight micro-utility, building an in-house zero-dependency helper is recommended."
+                ),
+                verdict=VerdictResponse(
+                    decision="BUILD",
+                    confidence_score=0.9,
+                    confidence_level="HIGH",
+                    confidence_factors=["Unverified Registry Candidates", "Single-Function Micro-Utility (< 25 LOC)", "Zero Third-Party Dependency Footprint"],
+                    reasoning=[
+                        f"Could not verify suggested candidate packages in the {system_input} registry for '{task_input}'.",
+                        "Because this requirement is a lightweight micro-utility (< 25 lines of code), building directly in-house avoids third-party dependency bloat.",
+                        "Zero external dependencies guarantee maximum performance and codebase security."
+                    ],
+                    recommended_alternative=None,
+                    estimated_build_effort="~5-15 lines of code, ~5 mins"
+                ),
+                builder=builder_res
+            )
+        else:
+            logger.warning(f"⚠️ [Task Scale Guard] Complex task requirement '{task_input}' has 0 verified candidate packages. Issuing UNVERIFIED_CANDIDATES notice.")
+            unverified_eval = PackageEvaluationDetail(
+                package_name=f"unverified-{system_input.lower()}-candidates",
+                system=system_input,
+                github_url=None,
+                repo_owner=None,
+                repo_name=None,
+                resolution=PackageResolutionResponse(
+                    name=f"unverified-{system_input.lower()}-candidates",
+                    system=system_input,
+                    version="0.0.0",
+                    project_name=f"unverified-{system_input.lower()}-candidates",
+                    licenses=[],
+                    github_url=None,
+                    published_at=None
+                ),
+                security=SecurityContextResponse(
+                    critical_vulnerabilities=0,
+                    high_vulnerabilities=0,
+                    medium_vulnerabilities=0,
+                    low_vulnerabilities=0,
+                    unknown_vulnerabilities=0,
+                    total_vulnerabilities=0,
+                    direct_dependencies=0,
+                    transitive_dependencies=0,
+                    license="Unknown",
+                    is_current_version_vulnerable=False
+                ),
+                forecast=ForecastAnalysis(
+                    projected_timeline=[],
+                    trend_direction="UNAVAILABLE",
+                    health_score=0.0,
+                    projected_total_events_90d=0,
+                    maintenance_verdict_signal="UNAVAILABLE"
+                ),
+                recent_issues=[],
+                diagnosis=DiagnosisResponse(
+                    status="UNCERTAIN_UNVERIFIED",
+                    is_abandoned=False,
+                    confidence_score=0.0,
+                    confidence_reason="None of the suggested candidate packages were found in ecosystem package resolution table.",
+                    bug_severity_assessment="Telemetry unavailable.",
+                    explanation=f"Could not verify candidate packages in the {system_input} registry for requirement '{task_input}'."
+                ),
+                verdict=VerdictResponse(
+                    decision="UNVERIFIED_CANDIDATES",
+                    confidence_score=0.0,
+                    confidence_level="LOW",
+                    confidence_factors=["Unverified Registry Candidates", "High Architectural Task Complexity"],
+                    reasoning=[
+                        f"Could not verify candidate packages in the {system_input} registry for this requirement.",
+                        "Because this task requires significant architectural complexity, building a custom implementation from scratch is non-trivial.",
+                        "Please verify registry connection or evaluate by exact package name."
+                    ],
+                    recommended_alternative=None
+                ),
+                builder=None
+            )
+        
+        return EvaluationTaskResponse(
+            mode="task",
+            task_description=task_input,
+            system=system_input,
+            primary_evaluation=unverified_eval,
+            candidate_screenings=screenings
+        )
+
+    primary_cand = verified_candidates[0]
 
     logger.info(f"Selected primary candidate '{primary_cand.name}' ({primary_cand.system}) for deep evaluation.")
 
