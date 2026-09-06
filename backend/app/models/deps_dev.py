@@ -26,6 +26,7 @@ class SecurityContextResponse(BaseModel):
     active_cves_on_current_version: int = 0
     patched_historical_cves: int = 0
     is_current_version_vulnerable: bool = False
+    recommended_pinned_version: Optional[str] = None
 
 
 class DepsDevVerificationResponse(BaseModel):
