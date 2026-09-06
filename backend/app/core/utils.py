@@ -26,57 +26,40 @@ def extract_github_owner_repo(github_url: Optional[str]) -> Optional[Tuple[str, 
     return owner, repo
 
 
-from pydantic import BaseModel, Field
-
-
-class TaskComplexityClassification(BaseModel):
-    is_micro_utility: bool = Field(description="True if the task is a trivial single-function helper under ~25 LOC easily implemented with standard library built-ins in 5 minutes")
-    estimated_loc: int = Field(description="Estimated lines of code to implement (e.g. 5, 10, 50, 500)")
-    reasoning: str = Field(description="1-sentence reason for classification")
+MICRO_UTILITY_KEYWORDS = [
+    "left pad", "right pad", "pad string", "pad a string",
+    "is even", "is odd", "check if even", "check if odd",
+    "slugify", "make slug", "generate slug",
+    "clamp", "clamp float", "clamp number", "clamp integer",
+    "flatten array", "flatten list", "flatten nested",
+    "null or undefined", "is null", "is undefined", "check null",
+    "repeat string", "string repeat",
+    "to camelcase", "to snakecase", "to kebabcase", "uppercase string", "lowercase string",
+    "escape html", "escape string", "unescape html",
+    "reverse string", "trim string", "truncate string"
+]
 
 
 def is_micro_utility_requirement(task_description: str) -> bool:
     """
-    AI-Powered Early Micro-Utility Classifier:
-    Uses Gemini Flash to dynamically evaluate whether a user task requirement describes
-    a trivial single-function helper under ~25 lines of code (e.g., string padding, slugification,
-    parity checks, clamping, array flattening) with ZERO hardcoded keyword dictionaries.
+    Early Micro-Utility Classifier:
+    Detects if a user task description describes a single-function, trivial micro-utility
+    under ~25 lines of code (e.g., string padding, slugification, parity checks, clamping, array flattening).
     """
     if not task_description or not task_description.strip():
         return False
 
-    api_key = settings.GEMINI_API_KEY
-    if not api_key:
-        return False
+    task_lower = task_description.strip().lower()
 
-    try:
-        from google import genai
-        client = genai.Client(api_key=api_key)
+    for kw in MICRO_UTILITY_KEYWORDS:
+        if kw in task_lower:
+            return True
 
-        prompt = (
-            f"You are an expert software architect evaluating task scope.\n"
-            f"Task Requirement: '{task_description}'\n\n"
-            f"INSTRUCTION:\n"
-            f"Determine if this requirement is a trivial micro-utility (under ~25 lines of code, a simple single-function helper like clamping a number, padding a string, checking null, slugifying a title, parity check, simple array flattening, or case conversion) that a developer should implement in 5 minutes with zero third-party dependencies using standard library built-ins.\n\n"
-            f"If it requires non-trivial architecture, external APIs, frameworks, complex algorithms, networking, databases, or systems engineering, set is_micro_utility to false."
-        )
+    words = task_lower.split()
+    if len(words) <= 4 and any(w in task_lower for w in ["pad", "even", "odd", "clamp", "slug", "flatten", "trim", "reverse", "repeat", "case"]):
+        return True
 
-        response = call_gemini_with_retry(
-            client=client,
-            prompt=prompt,
-            response_schema=TaskComplexityClassification,
-            temperature=0.0
-        )
-
-        if response.parsed and isinstance(response.parsed, TaskComplexityClassification):
-            is_micro = bool(response.parsed.is_micro_utility)
-            logger.info(f"   [AI Task Classifier] '{task_description}' -> is_micro={is_micro} (~{response.parsed.estimated_loc} LOC) | Reason: {response.parsed.reasoning}")
-            return is_micro
-
-        return False
-    except Exception as e:
-        logger.warning(f"AI task complexity classification failed ({e}). Defaulting to full pipeline.")
-        return False
+    return False
 
 
 def call_gemini_with_retry(
