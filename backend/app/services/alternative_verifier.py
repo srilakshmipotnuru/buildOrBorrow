@@ -44,13 +44,13 @@ def verify_alternative_package(
                 "note": "Package metadata could not be verified in deps.dev public dataset."
             }
     except Exception as e:
-        logger.error(f"Error during alternative package verification for '{clean_name}': {e}")
-        # Safe fallback response (prevents pipeline failure)
+        logger.warning(f"Alternative package verification failed for '{clean_name}': {e}")
+        # Safe fallback response (prevents pipeline failure, honestly reports unverified status)
         return {
             "name": clean_name,
             "system": target_system,
-            "verified_exists": True,
-            "github_url": f"https://github.com/search?q={clean_name}",
+            "verified_exists": False,
+            "github_url": None,
             "licenses": [],
-            "note": "Unverified (BigQuery resolution skipped or unavailable)."
+            "note": f"Verification unavailable ({type(e).__name__})."
         }

@@ -62,15 +62,26 @@ def diagnose_package(
                 explanation=f"Package '{package_name}' repository is officially ARCHIVED (read-only mode) on GitHub. Maintenance has permanently ceased."
             )
 
-        # 2. Deprecation & Replacement Check (README deprecation signal)
-        if is_readme_deprecated:
+        # 2. Explicit Project Retirement Notice in README (Full project deprecation phrases only)
+        readme_lower = readme_info.get("readme_snippet", "").lower()
+        project_deprecation_phrases = [
+            "this project is deprecated",
+            "this package is deprecated",
+            "this repository is deprecated",
+            "this library is deprecated",
+            "no longer maintained",
+            "project is unmaintained",
+            "package is unmaintained"
+        ]
+        is_explicitly_deprecated = any(phrase in readme_lower for phrase in project_deprecation_phrases)
+        if is_explicitly_deprecated:
             return DiagnosisResponse(
                 status="ABANDONED_STRUGGLING",
                 is_abandoned=True,
                 confidence_score=0.95,
-                confidence_reason="Package is officially deprecated/renamed in README header or ecosystem registry.",
-                bug_severity_assessment="Project is unmaintained / deprecated.",
-                explanation=f"Fallback diagnosis identified '{package_name}' as deprecated from README notices."
+                confidence_reason="Maintainers officially announce project deprecation in README header.",
+                bug_severity_assessment="Project is declared unmaintained / deprecated by maintainers.",
+                explanation=f"README explicitly declares that '{package_name}' is deprecated or no longer maintained."
             )
 
         # 2. Critical Security Check
@@ -116,16 +127,23 @@ def diagnose_package(
         )
 
     api_key = settings.GEMINI_API_KEY
-    is_readme_deprecated = readme_info.get("is_deprecated_in_readme", False)
     is_archived = readme_info.get("is_archived", False)
+    readme_snippet = readme_info.get("readme_snippet", "")
 
-    if not api_key or is_readme_deprecated or is_archived:
+    # Only short-circuit if no API key is available or repository is officially ARCHIVED on GitHub
+    if not api_key or is_archived:
         return _rule_based_fallback()
 
     formatted_issue_list = "\n".join([
         f"- {item.get('title', '')} (opened {item.get('age', 'recently')})"
         for item in recent_issues[:15]
     ]) if recent_issues else "No open GitHub issues retrieved or issues disabled."
+
+    readme_section = (
+        f"README CONTEXT & DEPRECATION SIGNALS:\n"
+        f"\"\"\"\n{readme_snippet}\n\"\"\"\n"
+        f"- Instruction: Carefully read the README excerpt. Evaluate if maintainers officially state the entire package is deprecated, unmaintained, or superseded. Do NOT mark a library as abandoned merely because it mentions deprecating an old parameter or v1 helper.\n\n"
+    ) if readme_snippet else ""
 
     try:
         from google import genai
@@ -152,13 +170,15 @@ def diagnose_package(
             f"- Maintenance Verdict Signal: {forecast_analysis.get('maintenance_verdict_signal', 'UNKNOWN')}\n\n"
             f"QUALITATIVE RECENT GITHUB ISSUES (Title + Age):\n"
             f"{formatted_issue_list}\n\n"
+            f"{readme_section}"
             f"DIAGNOSIS INSTRUCTIONS:\n"
             f"1. CRITICAL DISTINCTION - MATURE BEDROCK vs ABANDONED:\n"
             f"   - Evaluate ONLY the specific target repository '{project_repo_name}' on system '{system_name}'. DO NOT conflate packages across different ecosystems (e.g. do NOT confuse an obscure PyPI package with a famous NPM package of the same name).\n"
             f"   - A package can ONLY be classified as MATURE_STABLE (Bedrock) if it has empirical proof of high adoption (e.g. high dependents count, high star count, or verified foundational usage in system '{system_name}') AND zero critical CVEs/crash bugs.\n"
             f"   - If target repository adoption metrics (stars/dependents) AND commit activity are low or zero, DO NOT excuse zero activity as 'API stability'. Classify as ABANDONED_STRUGGLING or UNCERTAIN_UNVERIFIED.\n"
-            f"2. SUPERSEDED / RENAMED PACKAGES:\n"
-            f"   - If the package is officially deprecated, renamed, or replaced (e.g. pep8 -> pycodestyle, requests-async -> httpx, nomurl -> urllib3), classify it as ABANDONED_STRUGGLING and set is_abandoned=true.\n"
+            f"2. SUPERSEDED / RENAMED / DEPRECATED PACKAGES:\n"
+            f"   - If the package is officially deprecated, renamed, or replaced (e.g. pep8 -> pycodestyle, requests-async -> httpx, nomurl -> urllib3), or maintainers declare it unmaintained in the README, classify it as ABANDONED_STRUGGLING and set is_abandoned=true.\n"
+            f"   - Do NOT mark an otherwise active library as abandoned if it merely mentions deprecating an old sub-feature in release notes.\n"
             f"3. Classify into one of 5 statuses:\n"
             f"   - MATURE_STABLE: API-complete bedrock package with verified high adoption, low/steady churn, 0 critical bugs/CVEs.\n"
             f"   - MAINTAINED_ACTIVE: Active commits, regular releases, healthy issue resolution.\n"
