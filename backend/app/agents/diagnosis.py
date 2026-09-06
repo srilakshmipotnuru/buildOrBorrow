@@ -43,108 +43,48 @@ def diagnose_package(
     stargazers = resolution_info.get("stargazers_count", 0)
     dependents = resolution_info.get("dependents_count", 0)
 
-    def _rule_based_fallback() -> DiagnosisResponse:
-        logger.warning(f"   [Diagnosis Fallback] Executing production-grade rule-based diagnosis for '{package_name}'...")
-        health_score = forecast_analysis.get("health_score", 50.0)
-        verdict_signal = forecast_analysis.get("maintenance_verdict_signal", "UNKNOWN")
-        cve_count = sec_info.get("total_vulnerabilities", 0)
-        crit_cve = sec_info.get("critical_vulnerabilities", 0)
-        is_archived = readme_info.get("is_archived", False)
-
-        # 1. Official Platform Archival Signal (GET /repos/{owner}/{repo})
-        if is_archived:
-            return DiagnosisResponse(
-                status="ABANDONED_STRUGGLING",
-                is_abandoned=True,
-                confidence_score=1.0,
-                confidence_reason="Official GitHub Repository status is ARCHIVED (read-only mode).",
-                bug_severity_assessment="Repository is officially archived and read-only.",
-                explanation=f"Package '{package_name}' repository is officially ARCHIVED (read-only mode) on GitHub. Maintenance has permanently ceased."
-            )
-
-        # 2. Deprecation & Replacement Check (README deprecation signal)
-        if is_readme_deprecated:
-            return DiagnosisResponse(
-                status="ABANDONED_STRUGGLING",
-                is_abandoned=True,
-                confidence_score=0.95,
-                confidence_reason="Package is officially deprecated/renamed in README header or ecosystem registry.",
-                bug_severity_assessment="Project is unmaintained / deprecated.",
-                explanation=f"Fallback diagnosis identified '{package_name}' as deprecated from README notices."
-            )
-
-        # 2. Critical Security Check
-        if crit_cve > 0 or cve_count >= 3:
-            return DiagnosisResponse(
-                status="VULNERABLE",
-                is_abandoned=True,
-                confidence_score=0.95,
-                confidence_reason="Unresolved critical security vulnerabilities detected.",
-                bug_severity_assessment=f"Active security vulnerabilities: {cve_count} total ({crit_cve} critical).",
-                explanation=f"Package '{package_name}' has unresolved security advisories."
-            )
-
-        # 3. Repository / Telemetry Unavailable Signal
-        if verdict_signal == "UNAVAILABLE":
-            return DiagnosisResponse(
-                status="UNCERTAIN_UNVERIFIED",
-                is_abandoned=False,
-                confidence_score=0.5,
-                confidence_reason="Repository URL or telemetry is unavailable in ecosystem registry metadata.",
-                bug_severity_assessment="Could not fetch open GitHub issues or activity telemetry.",
-                explanation=f"Package '{package_name}' repository metadata is unavailable or unverified in the ecosystem registry."
-            )
-
-        # 4. "Finished Software" vs. "Dead Software" Check
-        if health_score >= 60 or verdict_signal == "HEALTHY_ACTIVE":
-            status_val = "MAINTAINED_ACTIVE"
-            is_ab = False
-        elif health_score < 30 or verdict_signal == "AT_RISK_STAGNANT":
-            status_val = "ABANDONED_STRUGGLING"
-            is_ab = True
-        else:
-            status_val = "MATURE_STABLE"
-            is_ab = False
-
-        return DiagnosisResponse(
-            status=status_val,
-            is_abandoned=is_ab,
-            confidence_score=0.85,
-            confidence_reason="Evaluated using quantitative health score and maintenance indicators.",
-            bug_severity_assessment=f"Analyzed {len(recent_issues)} recent open GitHub issues.",
-            explanation=f"Production-grade fallback classified '{package_name}' as '{status_val}'."
+    api_key = settings.GEMINI_API_KEY
+    if not api_key:
+        raise HTTPException(
+            status_code=503,
+            detail="AI Diagnosis Agent is unavailable (GEMINI_API_KEY not configured)."
         )
 
-    api_key = settings.GEMINI_API_KEY
-    is_readme_deprecated = readme_info.get("is_deprecated_in_readme", False)
     is_archived = readme_info.get("is_archived", False)
-
-    if not api_key or is_readme_deprecated or is_archived:
-        return _rule_based_fallback()
+    readme_snippet = readme_info.get("readme_snippet", "")
 
     formatted_issue_list = "\n".join([
         f"- {item.get('title', '')} (opened {item.get('age', 'recently')})"
         for item in recent_issues[:15]
     ]) if recent_issues else "No open GitHub issues retrieved or issues disabled."
 
+    readme_section = (
+        f"README CONTEXT & DEPRECATION SIGNALS:\n"
+        f"\"\"\"\n{readme_snippet}\n\"\"\"\n"
+        f"- Instruction: Carefully read the README excerpt. Evaluate if maintainers officially state the entire package is deprecated, unmaintained, or superseded. Do NOT mark a library as abandoned merely because it mentions deprecating an old parameter or v1 helper.\n\n"
+    ) if readme_snippet else ""
+
+    archived_str = "- Official GitHub Platform Status: ARCHIVED (read-only mode, permanent maintenance cessation)\n" if is_archived else ""
+
+    data_status_str = (
+        f"- Historical Pushes (104 wks): {historical_summary.get('total_pushes')}\n"
+        f"- Historical PRs (104 wks): {historical_summary.get('total_prs')}\n"
+        f"- Historical Stars (104 wks): {historical_summary.get('total_stars')}\n"
+    ) if historical_summary.get("data_retrieved", True) else "- Historical Activity: Data Unavailable / Skipped (DO NOT infer 0 commits or project abandonment)\n"
+
     try:
         from google import genai
         client = genai.Client(api_key=api_key)
 
-        data_status_str = (
-            f"- Historical Pushes (104 wks): {historical_summary.get('total_pushes')}\n"
-            f"- Historical PRs (104 wks): {historical_summary.get('total_prs')}\n"
-            f"- Historical Stars (104 wks): {historical_summary.get('total_stars')}\n"
-        ) if historical_summary.get("data_retrieved", True) else "- Historical Activity: Data Unavailable / Skipped (DO NOT infer 0 commits or project abandonment)\n"
-
         prompt = (
-            f"You are an expert AI Software Health & Maintenance Diagnostic Agent.\n"
+            f"You are the Senior Software Package Health Diagnosis Agent specialized in open-source repository maintenance analysis.\n"
             f"ECOSYSTEM & REPOSITORY GROUNDING:\n"
             f"- Target Ecosystem Registry: {system_name}\n"
             f"- Package Name: '{package_name}'\n"
             f"- Target Repository: {github_repo_url} ({project_repo_name})\n"
             f"- Repository Stars: {stargazers}\n"
-            f"- Downstream Dependent Projects: {dependents}\n\n"
+            f"- Downstream Dependent Projects: {dependents}\n"
+            f"{archived_str}\n"
             f"QUANTITATIVE METRICS:\n"
             f"{data_status_str}"
             f"- 90-Day Trend Direction: {forecast_analysis.get('trend_direction', 'STABLE')}\n"
@@ -152,13 +92,15 @@ def diagnose_package(
             f"- Maintenance Verdict Signal: {forecast_analysis.get('maintenance_verdict_signal', 'UNKNOWN')}\n\n"
             f"QUALITATIVE RECENT GITHUB ISSUES (Title + Age):\n"
             f"{formatted_issue_list}\n\n"
+            f"{readme_section}"
             f"DIAGNOSIS INSTRUCTIONS:\n"
             f"1. CRITICAL DISTINCTION - MATURE BEDROCK vs ABANDONED:\n"
-            f"   - Evaluate ONLY the specific target repository '{project_repo_name}' on system '{system_name}'. DO NOT conflate packages across different ecosystems (e.g. do NOT confuse an obscure PyPI package with a famous NPM package of the same name).\n"
+            f"   - Evaluate ONLY the specific target repository '{project_repo_name}' on system '{system_name}'. DO NOT conflate packages across different ecosystems.\n"
             f"   - A package can ONLY be classified as MATURE_STABLE (Bedrock) if it has empirical proof of high adoption (e.g. high dependents count, high star count, or verified foundational usage in system '{system_name}') AND zero critical CVEs/crash bugs.\n"
             f"   - If target repository adoption metrics (stars/dependents) AND commit activity are low or zero, DO NOT excuse zero activity as 'API stability'. Classify as ABANDONED_STRUGGLING or UNCERTAIN_UNVERIFIED.\n"
-            f"2. SUPERSEDED / RENAMED PACKAGES:\n"
-            f"   - If the package is officially deprecated, renamed, or replaced (e.g. pep8 -> pycodestyle, requests-async -> httpx, nomurl -> urllib3), classify it as ABANDONED_STRUGGLING and set is_abandoned=true.\n"
+            f"2. SUPERSEDED / RENAMED / DEPRECATED PACKAGES:\n"
+            f"   - If the package is officially deprecated, renamed, archived on GitHub, or maintainers declare it unmaintained in the README, classify it as ABANDONED_STRUGGLING and set is_abandoned=true.\n"
+            f"   - Do NOT mark an otherwise active library as abandoned if it merely mentions deprecating an old sub-feature in release notes.\n"
             f"3. Classify into one of 5 statuses:\n"
             f"   - MATURE_STABLE: API-complete bedrock package with verified high adoption, low/steady churn, 0 critical bugs/CVEs.\n"
             f"   - MAINTAINED_ACTIVE: Active commits, regular releases, healthy issue resolution.\n"
@@ -185,9 +127,16 @@ def diagnose_package(
             logger.info(f"   [Diagnosis Agent] Explanation: {diag.explanation}")
             return diag
         else:
-            return _rule_based_fallback()
+            raise HTTPException(
+                status_code=502,
+                detail=f"Diagnosis Agent failed to structure diagnosis for '{package_name}'."
+            )
 
+    except HTTPException:
+        raise
     except Exception as e:
-        logger.error(f"Error in Diagnosis Agent call ({e}). Triggering statistical fallback...")
-        return _rule_based_fallback()
-
+        logger.error(f"Error in Diagnosis Agent call ({e}).")
+        raise HTTPException(
+            status_code=503,
+            detail=f"AI Diagnosis Agent service error ({type(e).__name__}). Please retry."
+        )
