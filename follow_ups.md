@@ -138,10 +138,11 @@ Popular, foundational libraries (like `axios`, `express`, `lodash`, `requests`, 
 
 > [!NOTE]
 > **Implementation Summary (Completed):**
-> - **In-Memory Safe Version Evaluation**: Added `query_package_version_history` and `find_safe_pinned_version` in [`deps_dev.py`](file:///c:/Users/tvars/OneDrive/Desktop/my_project/buildOrBorrow/backend/app/queries/deps_dev.py). Evaluates release history against `affected_version_ranges` with 0 extra BigQuery byte overhead.
-> - **SemVer Major Branch Constraint**: Restricts version recommendations strictly to the same Major version branch (e.g. `2.x.x`) to guarantee zero breaking API changes.
+> - **In-Memory Safe Version Evaluation**: Added `query_package_version_history` and `find_safe_pinned_version` in [`deps_dev.py`](file:///d:/Downloads/patchamomma/buildOrBorrow/backend/app/queries/deps_dev.py). Evaluates release history against `affected_version_ranges` with 0 extra BigQuery byte overhead.
+> - **SemVer Branch Constraint**: Restricts version recommendations strictly to the same Major version branch (e.g. `2.x.x` for Major >= 1, or `0.x.y` matching Major and Minor for 0.x) to guarantee zero breaking API changes.
 > - **12-Month Recency Horizon**: Filters out release versions published > 365 days ago.
-> - **Verdict & UI Integration**: Updated Verdict Agent ([`verdict.py`](file:///c:/Users/tvars/OneDrive/Desktop/my_project/buildOrBorrow/backend/app/agents/verdict.py)) and UI Hero Card ([`VerdictCard.tsx`](file:///c:/Users/tvars/OneDrive/Desktop/my_project/buildOrBorrow/frontend/src/components/verdict/VerdictCard.tsx)) to display **`BORROW`** with a blue **`"Recommended Version Pin: vX.Y.Z"`** banner when a safe version exists, or fall back to **`MIGRATE`** if no clean version exists in the 12-month horizon.
+> - **Dual-Perspective Advice Model**: When the current release has an active CVE but a clean pinned version exists, the system outputs **`BORROW`** with `recommended_pinned_version` for developers with an existing codebase (pin to clean version with zero breaking changes), while concurrently providing `recommended_alternative` for fresh adopters starting a new project.
+> - **Verdict & UI Integration**: Updated Verdict Agent ([`verdict.py`](file:///d:/Downloads/patchamomma/buildOrBorrow/backend/app/agents/verdict.py)) and UI Hero Card ([`VerdictCard.tsx`](file:///d:/Downloads/patchamomma/buildOrBorrow/frontend/src/components/verdict/VerdictCard.tsx), [`VerdictCard.css`](file:///d:/Downloads/patchamomma/buildOrBorrow/frontend/src/components/verdict/VerdictCard.css)) displaying an eye-catching blue **`"Recommended Version Pin: vX.Y.Z (Zero Breaking Changes)"`** banner alongside clear dual-perspective guidance.
 When the latest release version of a healthy package (e.g. `v2.4.0`) contains a newly reported vulnerability, how far back in version history should the system look to recommend a safe stable version?
 
 ### **Proposed Boundary Rules & 0-Extra-Query Implementation:**
@@ -158,7 +159,15 @@ When the latest release version of a healthy package (e.g. `v2.4.0`) contains a 
 
 ---
 
-## 8. 🤖 Eliminate Hardcoded AI Interceptors & Replace Static Lists with Dynamic LLM Classification (Done ✅)
+## 8. 🤖 Eliminate Hardcoded AI Interceptors & Replace Static Lists with Dynamic LLM Classification [DONE ✅]
+
+> [!NOTE]
+> **Implementation Summary (Completed):**
+> - **Pre-Call Interceptors Removed**: Eliminated hardcoded interceptors in `diagnosis.py` and `verdict.py`. Gemini is called on 100% of requests; fallback logic only runs inside exception handlers.
+> - **Readme Deprecation Guard Cleaned**: Removed blind substring checking on the single word `"deprecated"`. README context is passed directly to Gemini, and fallback regex only triggers on explicit project abandonment sentences (`"this project is deprecated"`, `"repository has been archived"`).
+> - **Mathematical Velocity Restored**: Stripped out arbitrary `+40.0` star-inflation hack in `forecasting.py`.
+> - **Candidate Verifier Fixed**: Removed false-positive `verified_exists: True` fallback bug in `alternative_verifier.py`.
+> - **Domain Relevance & Anti-Overkill Guard**: Added strict domain alignment rules to `verdict.py` prompt forbidding `BORROW` when a package's domain has zero relation to the requirement (e.g. video rendering library for caching).
 
 ### **Problem Statement:**
 1. **Active AI Interceptor in `verdict.py` (Line 235)**:
