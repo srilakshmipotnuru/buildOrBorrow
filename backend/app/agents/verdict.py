@@ -3,6 +3,7 @@ from typing import List, Dict, Any, Literal, Optional
 from fastapi import HTTPException
 from pydantic import BaseModel, Field
 from app.core.config import settings
+from app.core.utils import is_micro_utility_requirement
 
 logger = logging.getLogger(__name__)
 
@@ -25,6 +26,7 @@ class VerdictResponse(BaseModel):
     reasoning: List[str] = Field(description="Bullet points explaining why this decision was reached")
     recommended_alternative: Optional[str] = Field(None, description="Suggested active alternative package name if decision is MIGRATE")
     recommended_alternative_system: Optional[str] = Field(None, description="Suggested alternative ecosystem (e.g. PYPI, NPM)")
+    recommended_pinned_version: Optional[str] = Field(None, description="Recommended safe pinned release version if latest has active CVEs")
     alternative_verification: Optional[AlternativeVerification] = Field(None, description="Lightweight verification output for recommended alternative")
     estimated_build_effort: Optional[str] = Field(None, description="Estimated effort/lines of code if decision is BUILD")
 
@@ -101,33 +103,55 @@ def generate_verdict(
 
         active_cve = security_context.get("active_cves_on_current_version", 0)
         patched_cve = security_context.get("patched_historical_cves", 0)
+        pinned_ver = security_context.get("recommended_pinned_version")
 
-        # 1. Critical Security Check (MIGRATE ONLY IF ACTIVE CVES EXIST ON CURRENT VERSION)
-        if active_cve > 0 or status_val == "VULNERABLE":
+        # 1. Critical Security Check with Safe Version Pinning Guard
+        if (active_cve > 0 or status_val == "VULNERABLE") and not is_ab and status_val != "ABANDONED_STRUGGLING" and pinned_ver:
+            rec_alt = f"{pkg_name}-alternative"
+            return VerdictResponse(
+                decision="BORROW",
+                confidence_score=0.90,
+                confidence_level="HIGH",
+                confidence_factors=[
+                    "Active Security Advisory on Latest Release",
+                    f"Safe Pinned Version Available (v{pinned_ver})",
+                    "100% Backward Compatible Major Branch"
+                ],
+                reasoning=[
+                    f"Package '{pkg_name}' contains {active_cve} active unpatched security advisory on latest release.",
+                    f"Existing codebase recommendation: Pin to clean release v{pinned_ver} in the same SemVer branch for 100% backward compatibility with 0 CVEs.",
+                    f"Fresh project recommendation: You can adopt v{pinned_ver} or evaluate clean alternative '{rec_alt}' to avoid starting on an unpatched upstream release."
+                ],
+                recommended_alternative=rec_alt,
+                recommended_alternative_system=system,
+                recommended_pinned_version=pinned_ver
+            )
+        elif active_cve > 0 or status_val == "VULNERABLE":
             rec_alt = f"{pkg_name}-alternative"
             return VerdictResponse(
                 decision="MIGRATE",
                 confidence_score=0.95,
                 confidence_level="HIGH",
-                confidence_factors=["Unpatched Security Vulnerability on Current Release", "Security Advisory Open"],
+                confidence_factors=["Unpatched Security Vulnerability on Current Release", "No Safe Compatible Release in 12-Month Horizon"],
                 reasoning=[
                     f"Package '{pkg_name}' contains {active_cve} active, unpatched security advisories on current release.",
-                    "Unpatched vulnerabilities introduce high supply-chain security risks.",
+                    "No clean vulnerability-free release exists in the same SemVer branch within the last 12 months.",
                     "Migrating to an actively maintained alternative is required."
                 ],
                 recommended_alternative=rec_alt,
-                recommended_alternative_system=system
+                recommended_alternative_system=system,
+                recommended_pinned_version=None
             )
 
         # 2. Micro-Utility / Trivial Code Check (BUILD)
-        if user_requirement and any(w in user_requirement.lower() for w in ["clamp", "repeat", "null or undefined", "uppercase", "left pad", "is number", "slugify", "flatten", "escape string"]):
+        if user_requirement and is_micro_utility_requirement(user_requirement):
             return VerdictResponse(
                 decision="BUILD",
-                confidence_score=0.95,
+                confidence_score=0.90,
                 confidence_level="HIGH",
-                confidence_factors=["Single-Function Utility", "Zero Third-Party Dependency Footprint"],
+                confidence_factors=["Single-Function Utility (< 25 LOC)", "Zero Third-Party Dependency Footprint"],
                 reasoning=[
-                    f"Target package '{pkg_name}' is healthy/stable, but the requirement is a trivial micro-utility (under ~20 lines of code).",
+                    f"Target package '{pkg_name}' is healthy/stable, but the requirement is a trivial micro-utility (under ~25 lines of code).",
                     f"Importing an external library or binary dependency solely for a single-function helper introduces unnecessary dependency bloat.",
                     f"Building in-house eliminates third-party bloat. Use an inline helper unless your project already relies on '{pkg_name}' for broader workflows."
                 ],
@@ -177,6 +201,8 @@ def generate_verdict(
             llm_delta=0.0,
             is_archived=is_archived_flag
         )
+        if not is_archived_flag:
+            conf_factors.append("⚠️ Rule-based algorithmic evaluation (AI service unavailable)")
 
         return VerdictResponse(
             decision=dec,
@@ -218,13 +244,23 @@ def generate_verdict(
             f"- Maintenance Health Score: {forecast_analysis.get('health_score', 50.0)} / 100.0\n"
             f"- 90-Day Trend Direction: {forecast_analysis.get('trend_direction', 'STABLE')}\n"
             f"- Active Unpatched CVEs on Current Release: {security_context.get('active_cves_on_current_version', 0)}\n"
+            f"- Recommended Safe Pinned Version: {security_context.get('recommended_pinned_version') or 'None'}\n"
             f"- Historical Patched CVEs: {security_context.get('patched_historical_cves', 0)}\n"
             f"- Transitive Dependencies: {security_context.get('transitive_dependencies', 0)}\n"
             f"- License: {security_context.get('license', 'Unknown')}\n\n"
             f"DECISION RULES:\n"
-            f"1. HISTORICAL PATCHED CVES VS ACTIVE CVES (BORROW / MIGRATE):\n"
+            f"1. HISTORICAL PATCHED CVES VS ACTIVE CVES VS SAFE VERSION PINNING (BORROW / MIGRATE):\n"
             f"   - Historical patched CVEs (active_cves_on_current_version == 0) represent active security stewardship, NOT a reason to abandon a library! If current release has 0 active CVEs, permit BORROW.\n"
-            f"   - Only trigger MIGRATE for security reasons if active_cves_on_current_version > 0 (an unpatched vulnerability remains open on the current release).\n"
+            f"   - When active_cves_on_current_version > 0 (an unpatched vulnerability is open on the current release):\n"
+            f"     * CHECK 1: If the library is abandoned, archived, or deprecated, you MUST set decision to MIGRATE (never pin a dying project).\n"
+            f"     * CHECK 2: If the library is actively maintained / mature and a 'Recommended Safe Pinned Version' (e.g. vX.Y.Z) is present in evidence:\n"
+            f"       - Set decision to BORROW.\n"
+            f"       - Set recommended_pinned_version to that safe version string.\n"
+            f"       - ALSO specify a modern clean alternative package in recommended_alternative.\n"
+            f"       - Provide dual-perspective advice in reasoning:\n"
+            f"         • Existing codebases: Advise pinning to vX.Y.Z in the same major branch for 100% backward compatibility with 0 CVEs.\n"
+            f"         • Fresh projects: Advise that developers can adopt vX.Y.Z or evaluate recommended_alternative to avoid starting on an unpatched upstream release.\n"
+            f"     * CHECK 3: If active CVEs exist and NO safe pinned version is available in evidence, you MUST set decision to MIGRATE.\n"
             f"2. DYNAMIC MICRO-UTILITY & TRIVIAL TASK CLASSIFICATION (BUILD):\n"
             f"   - Dynamically analyze if:\n"
             f"     a) '{pkg_name}' itself is a single-function micro-utility library (e.g. left-pad, is-even, pad-left, clamp, is-number), OR\n"
@@ -240,14 +276,23 @@ def generate_verdict(
             f"4. MATURE BEDROCK OVERRIDE (BORROW):\n"
             f"   - A package can ONLY qualify for Mature Bedrock Override if the target repository '{project_name}' on system '{system}' has verified high adoption AND the requested feature requirement represents broad non-trivial usage of the library.\n"
             f"   - DO NOT trigger Bedrock Override if the requested task is a trivial micro-utility (e.g. scalar float clamp) that can be written in 2 lines without the library.\n"
-            f"5. DEFAULT BORROW:\n"
-            f"   - Recommend BORROW if the package is mature, active, or stable and the feature requirement is non-trivial.\n\n"
+            f"5. DOMAIN RELEVANCE & ANTI-OVERKILL GUARD (PACKAGE MODE):\n"
+            f"   - When evaluating a specific package '{pkg_name}' paired with a user requirement '{user_requirement}', evaluate whether '{pkg_name}' actually belongs to the functional problem domain of the requirement.\n"
+            f"   - If '{pkg_name}' is healthy/active, but its primary domain has ZERO functional relevance to the requirement (e.g. using a 500MB animation/video engine 'manim' for 'web caching', or a dataframe library for 'audio playback', or a database driver for 'string parsing'):\n"
+            f"     * FORBID 'BORROW'. Do not recommend importing an irrelevant heavy stack simply because the package itself is healthy.\n"
+            f"     * If the task is lightweight or standard, set decision to BUILD and advise standard library primitives (e.g. '@functools.lru_cache', 're', 'urllib') or suggest a domain-appropriate library in recommended_alternative (e.g. 'cachetools').\n"
+            f"     * Bullet 1: Clarify that '{pkg_name}' is a healthy library in its own domain, but functionally mismatched for '{user_requirement}'.\n"
+            f"     * Bullet 2: Warn that importing an unrelated heavy domain library introduces massive dependency bloat, compilation overhead, and unnecessary supply-chain attack surface.\n"
+            f"     * Bullet 3: Provide the domain-appropriate recommendation (standard library build or purpose-built package).\n"
+            f"6. DEFAULT BORROW:\n"
+            f"   - Recommend BORROW if the package is mature, active, or stable, is functionally relevant to the domain, and the feature requirement is non-trivial.\n\n"
             f"OUTPUT REQUIREMENTS:\n"
             f"- Set decision to BORROW, MIGRATE, or BUILD.\n"
             f"- Set confidence_score (0.0 to 1.0) and confidence_level (HIGH, MEDIUM, or LOW).\n"
             f"- Provide 3 key reasoning bullet points.\n"
             f"- If BUILD, provide estimated_build_effort (e.g. '15 lines of code, ~10 mins').\n"
-            f"- If MIGRATE, set recommended_alternative to the suggested replacement package name."
+            f"- If MIGRATE, set recommended_alternative to the suggested replacement package name.\n"
+            f"- If BORROW with version pin, set recommended_pinned_version to the safe release version string."
         )
 
         from app.core.utils import call_gemini_with_retry
@@ -272,6 +317,13 @@ def generate_verdict(
             verdict.confidence_score = conf_score
             verdict.confidence_level = conf_level
             verdict.confidence_factors = conf_factors
+
+            # Preserve recommended_pinned_version from evidence if decision is BORROW and pin is present
+            safe_pin_from_evidence = security_context.get("recommended_pinned_version")
+            if verdict.decision == "BORROW" and safe_pin_from_evidence:
+                verdict.recommended_pinned_version = safe_pin_from_evidence
+                if f"Safe Pinned Version Available (v{safe_pin_from_evidence})" not in verdict.confidence_factors:
+                    verdict.confidence_factors.append(f"Safe Pinned Version Available (v{safe_pin_from_evidence})")
             logger.info(f"   [Verdict Agent] Decision: '{verdict.decision}' (Score: {verdict.confidence_score} - {verdict.confidence_level})")
             if verdict.reasoning:
                 logger.info(f"   [Verdict Agent] Key Reasoning:")

@@ -172,6 +172,52 @@
 }
 
 /* Specific Action Boxes */
+.pinned-version-box {
+  padding: 0.95rem 1.15rem;
+  border-radius: 10px;
+  background: #eff6ff;
+  border: 1px solid #93c5fd;
+  color: #1e3a8a;
+  font-size: 0.95rem;
+  margin-bottom: 1.25rem;
+}
+
+.pinned-title {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+  font-size: 0.975rem;
+  margin-bottom: 0.45rem;
+}
+
+.pinned-title code {
+  background: #dbeafe;
+  color: #1d4ed8;
+  padding: 2px 8px;
+  border-radius: 4px;
+  font-weight: 700;
+  font-size: 0.95rem;
+}
+
+.pinned-tag {
+  background: #2563eb;
+  color: #ffffff;
+  padding: 2px 8px;
+  border-radius: 9999px;
+  font-size: 0.725rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.pinned-subtext {
+  font-size: 0.875rem;
+  line-height: 1.55;
+  color: #1e40af;
+  margin-top: 0.35rem;
+}
+
 .migrate-recommendation-box {
   padding: 0.9rem 1.1rem;
   border-radius: 10px;
