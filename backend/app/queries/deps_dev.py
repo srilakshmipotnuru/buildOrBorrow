@@ -1,6 +1,6 @@
 import re
 import logging
-from typing import Optional, Dict, Any, List
+from typing import Optional, Dict, Any
 from google.cloud import bigquery
 from app.core.bigquery import get_bigquery_client, execute_safe_query
 from app.core.config import settings
@@ -28,114 +28,6 @@ def is_version_vulnerable(version_str: Optional[str], range_str: Optional[str]) 
     except Exception:
         pass
     return False
-
-
-def parse_semver(version_str: str) -> tuple[int, int, int]:
-    """Parses a version string into (major, minor, patch) integers."""
-    clean_v = version_str.strip().lstrip("v")
-    parts = []
-    for p in clean_v.split("."):
-        digits = re.findall(r"\d+", p)
-        if digits:
-            parts.append(int(digits[0]))
-        else:
-            break
-    while len(parts) < 3:
-        parts.append(0)
-    return parts[0], parts[1], parts[2]
-
-
-def find_safe_pinned_version(
-    current_version: str,
-    version_history: List[Dict[str, Any]],
-    affected_version_ranges: List[str]
-) -> Optional[str]:
-    """
-    Finds the most recent vulnerability-free version within the same SemVer compatibility branch:
-    1. If Major >= 1: matches same Major version (e.g. 2.x).
-    2. If Major == 0: matches same Major AND Minor version (e.g. 0.4.x).
-    3. Excludes current vulnerable version and newer releases.
-    4. Must have 0 active vulnerabilities against affected_version_ranges.
-    """
-    if not current_version or not version_history:
-        return None
-
-    try:
-        cur_major, cur_minor, cur_patch = parse_semver(current_version)
-    except Exception:
-        return None
-
-    for item in version_history:
-        cand_v_str = item.get("Version") or item.get("version")
-        if not cand_v_str or cand_v_str.strip().lower() == current_version.strip().lower():
-            continue
-
-        try:
-            cand_major, cand_minor, cand_patch = parse_semver(cand_v_str)
-        except Exception:
-            continue
-
-        # SemVer compatibility rules:
-        if cur_major >= 1:
-            if cand_major != cur_major:
-                continue
-        else:
-            # For 0.x, minor changes can introduce breaking changes
-            if cand_major != cur_major or cand_minor != cur_minor:
-                continue
-
-        # Must be strictly earlier than current version
-        if (cand_major, cand_minor, cand_patch) >= (cur_major, cur_minor, cur_patch):
-            continue
-
-        # Check against all affected vulnerability ranges
-        is_vuln = any(is_version_vulnerable(cand_v_str, r) for r in affected_version_ranges)
-        if not is_vuln:
-            logger.info(f"   [Safe Version Pinning] Found safe version '{cand_v_str}' for current vulnerable v{current_version}")
-            return cand_v_str
-
-    return None
-
-
-def query_package_version_history(
-    package_name: str,
-    system: Optional[str] = None,
-    client: Optional[bigquery.Client] = None,
-    limit: int = 15
-) -> List[Dict[str, Any]]:
-    """
-    Queries up to `limit` recent released versions from deps.dev PackageVersions table
-    published within the last 365 days (12-month recency horizon).
-    """
-    package_name = package_name.strip().lower()
-    target_system = (system or "PYPI").strip().upper()
-    bq_client = client or get_bigquery_client()
-
-    sql = f"""
-    SELECT 
-        Version,
-        CAST(SnapshotAt AS STRING) AS published_at,
-        VersionInfo.Ordinal AS ordinal
-    FROM `bigquery-public-data.deps_dev_v1.PackageVersions`
-    WHERE System = @system 
-      AND Name = @package_name
-      AND VersionInfo.IsRelease = true
-      AND SnapshotAt >= TIMESTAMP_SUB(CURRENT_TIMESTAMP(), INTERVAL 365 DAY)
-    ORDER BY VersionInfo.Ordinal DESC
-    LIMIT {limit}
-    """
-    job_config = bigquery.QueryJobConfig(
-        query_parameters=[
-            bigquery.ScalarQueryParameter("package_name", "STRING", package_name),
-            bigquery.ScalarQueryParameter("system", "STRING", target_system)
-        ]
-    )
-    try:
-        rows = execute_safe_query(bq_client, sql, job_config=job_config, max_allowed_mb=settings.BQ_DEPS_DEV_MAX_ALLOWED_MB)
-        return [{"Version": r.Version, "published_at": r.published_at, "ordinal": r.ordinal} for r in rows]
-    except Exception as e:
-        logger.warning(f"Failed to query version history for {package_name}: {e}")
-        return []
 
 
 def query_package_resolution(
@@ -171,6 +63,7 @@ def query_package_resolution(
         SELECT 
             System, 
             Name, 
+            Version, 
             ProjectName
         FROM `bigquery-public-data.deps_dev_v1.PackageVersionToProject`
         WHERE System = @system 
@@ -313,22 +206,9 @@ def query_security_and_dependencies(
 
         output["is_current_version_vulnerable"] = output["active_cves_on_current_version"] > 0
         output["affected_version_ranges"] = list(ranges_set)[:5]
-
-        # Safe Version Pinning Evaluation:
-        # If current release has active CVEs, inspect release history for a clean version in the same major branch
-        if output["is_current_version_vulnerable"] and version:
-            history = query_package_version_history(package_name=package_name, system=target_system, client=client)
-            safe_ver = find_safe_pinned_version(version, history, output["affected_version_ranges"])
-            output["recommended_pinned_version"] = safe_ver
-            if safe_ver:
-                logger.info(
-                    f"   [Safe Version Pinning] Recommended clean pinned version: v{safe_ver} "
-                    f"(Current v{version} has {output['active_cves_on_current_version']} active CVEs)"
-                )
-
         logger.info(
             f"   [deps.dev Security] Scoped Advisory Summary for '{package_name}' v{version or 'latest'}: "
-            f"Total={output['total_vulnerabilities']} (Active on current v{version}: {output['active_cves_on_current_version']}, Patched Historical: {output['patched_historical_cves']}, Recommended Pin: {output['recommended_pinned_version']})"
+            f"Total={output['total_vulnerabilities']} (Active on current v{version}: {output['active_cves_on_current_version']}, Patched Historical: {output['patched_historical_cves']})"
         )
     except Exception as e:
         logger.error(f"Error querying advisories for {package_name}: {e}")
@@ -339,11 +219,11 @@ def query_security_and_dependencies(
         if resolution:
             version = resolution.get("version")
 
-    # 2. Query Transitive Dependency Count Bloat (Uses HyperLogLog++ APPROX_COUNT_DISTINCT for memory & speed optimization)
+    # 2. Query Transitive Dependency Count Bloat
     if version:
         deps_sql = f"""
         SELECT 
-            APPROX_COUNT_DISTINCT(Dependency.Name) AS total_dependencies
+            COUNT(DISTINCT Dependency.Name) AS total_dependencies
         FROM `bigquery-public-data.deps_dev_v1.Dependencies`
         WHERE System = @system 
           AND Name = @package_name

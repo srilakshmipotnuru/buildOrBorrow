@@ -155,21 +155,6 @@ ${verdict.confidence_factors.map((f) => `- ${f}`).join('\n')}
           </div>
         )}
 
-        {/* SAFE VERSION PIN Recommendation Banner */}
-        {verdict.recommended_pinned_version && (
-          <div className="pinned-version-box">
-            <div className="pinned-title">
-              <strong>📌 Recommended Safe Version Pin:</strong>
-              <code>v{verdict.recommended_pinned_version.replace(/^v/, '')}</code>
-              <span className="pinned-tag">Zero Breaking Changes</span>
-            </div>
-            <div className="pinned-subtext">
-              • <strong>Existing codebases:</strong> Pin to <code>v{verdict.recommended_pinned_version.replace(/^v/, '')}</code> in the same major branch for 100% backward compatibility with 0 CVEs.<br />
-              • <strong>Fresh adopters:</strong> You can start on <code>v{verdict.recommended_pinned_version.replace(/^v/, '')}</code>{verdict.recommended_alternative ? <> or evaluate clean modern alternative <code className="alt-code">{verdict.recommended_alternative}</code></> : ''} to avoid upstream unpatched releases.
-            </div>
-          </div>
-        )}
-
         {/* MIGRATE Recommendation Banner */}
         {verdict.decision === 'MIGRATE' && verdict.recommended_alternative && (
           <div className="migrate-recommendation-box">

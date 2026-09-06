@@ -26,11 +26,6 @@ export interface SecurityContextResponse {
   direct_dependencies?: number | null;
   transitive_dependencies: number;
   license: string;
-  affected_version_ranges?: string[];
-  active_cves_on_current_version?: number;
-  patched_historical_cves?: number;
-  is_current_version_vulnerable?: boolean;
-  recommended_pinned_version?: string | null;
 }
 
 export interface ProjectedWeek {
@@ -83,7 +78,6 @@ export interface VerdictResponse {
   reasoning: string[];
   recommended_alternative?: string;
   recommended_alternative_system?: string;
-  recommended_pinned_version?: string | null;
   alternative_verification?: AlternativeVerification;
   estimated_build_effort?: string;
 }
