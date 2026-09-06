@@ -27,44 +27,27 @@ def generate_custom_build(
     """
     api_key = settings.GEMINI_API_KEY
     target_system = (system or "PYPI").upper()
-    lang = "typescript" if target_system == "NPM" else "python"
-
-    def _builder_fallback() -> BuilderResponse:
-        logger.warning(f"   [Builder Fallback] Executing fallback code generation for '{package_name}' ({lang})...")
-        if lang == "python":
-            fallback_code = (
-                f"# Zero-dependency in-house replacement for {package_name}\n"
-                f"def custom_{package_name.replace('-', '_')}_utility(*args, **kwargs):\n"
-                f"    \"\"\"\n"
-                f"    In-house zero-dependency implementation for: {user_requirement}\n"
-                f"    \"\"\"\n"
-                f"    # Implemented using Python Standard Library\n"
-                f"    pass\n"
-            )
-        else:
-            fallback_code = (
-                f"// Zero-dependency in-house replacement for {package_name}\n"
-                f"export function customUtility(...args: any[]): any {{\n"
-                f"    // In-house implementation for: {user_requirement}\n"
-                f"    return null;\n"
-                f"}}\n"
-            )
-        return BuilderResponse(
-            language=lang,
-            code_snippet=fallback_code,
-            explanation=f"Fallback zero-dependency code template for {package_name}.",
-            dependencies_used=[]
-        )
+    SYSTEM_LANGUAGE_MAP = {
+        "NPM": "typescript",
+        "CARGO": "rust",
+        "GO": "go",
+        "MAVEN": "java",
+        "PYPI": "python"
+    }
+    lang = SYSTEM_LANGUAGE_MAP.get(target_system, "python")
 
     if not api_key:
-        return _builder_fallback()
+        raise HTTPException(
+            status_code=503,
+            detail="AI Builder service is unavailable (GEMINI_API_KEY not configured)."
+        )
 
     try:
         from google import genai
         client = genai.Client(api_key=api_key)
 
         prompt = (
-            f"You are the Builder Agent for BuildOrBorrow.\n"
+            f"You are the Senior Software Engineer Builder Agent specialized in implementing zero-dependency utilities.\n"
             f"User Requirement: '{user_requirement}'\n"
             f"Package Being Replaced: '{package_name}'\n"
             f"Target Ecosystem: '{target_system}' (Language: '{lang}')\n\n"
@@ -88,12 +71,20 @@ def generate_custom_build(
         if response.parsed and isinstance(response.parsed, BuilderResponse):
             builder_res = response.parsed
             builder_res.dependencies_used = []  # Force zero-dependency guarantee
-            logger.info(f"Builder Agent generated zero-dependency code snippet for {package_name}")
+            logger.info(f"Builder Agent generated zero-dependency code snippet for {package_name} ({lang})")
             return builder_res
         else:
-            return _builder_fallback()
+            raise HTTPException(
+                status_code=502,
+                detail=f"Builder Agent failed to parse code snippet for '{package_name}'."
+            )
 
+    except HTTPException:
+        raise
     except Exception as e:
-        logger.error(f"Error in Builder Agent call ({e}). Triggering fallback...")
-        return _builder_fallback()
+        logger.error(f"Error in Builder Agent call ({e}).")
+        raise HTTPException(
+            status_code=503,
+            detail=f"AI Builder service error ({type(e).__name__})."
+        )
 

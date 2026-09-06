@@ -3,7 +3,6 @@ from typing import List, Dict, Any, Literal, Optional
 from fastapi import HTTPException
 from pydantic import BaseModel, Field
 from app.core.config import settings
-from app.core.utils import is_micro_utility_requirement
 
 logger = logging.getLogger(__name__)
 
@@ -89,138 +88,19 @@ def generate_verdict(
     Raises HTTP 503 if Gemini AI service is unconfigured or fails.
     """
     api_key = settings.GEMINI_API_KEY
+    if not api_key:
+        raise HTTPException(
+            status_code=503,
+            detail="Gemini API key is not configured. AI verdict synthesis service is unavailable."
+        )
+
     diag_status = diagnosis_output.get("status", "MAINTAINED_ACTIVE")
     pkg_name = package_resolution.get("name") or package_resolution.get("package_name") or package_resolution.get("project_name") or "target-package"
-
-    def _rule_based_verdict_fallback() -> VerdictResponse:
-        logger.warning(f"   [Verdict Fallback] Executing production-grade formulaic verdict for '{pkg_name}'...")
-        is_ab = diagnosis_output.get("is_abandoned", False)
-        status_val = diagnosis_output.get("status", "MAINTAINED_ACTIVE")
-        health_score = forecast_analysis.get("health_score", 50.0)
-        cve_count = security_context.get("total_vulnerabilities", 0)
-        crit_cve = security_context.get("critical_vulnerabilities", 0)
-        pkg_lower = pkg_name.lower().strip()
-
-        active_cve = security_context.get("active_cves_on_current_version", 0)
-        patched_cve = security_context.get("patched_historical_cves", 0)
-        pinned_ver = security_context.get("recommended_pinned_version")
-
-        # 1. Critical Security Check with Safe Version Pinning Guard
-        if (active_cve > 0 or status_val == "VULNERABLE") and not is_ab and status_val != "ABANDONED_STRUGGLING" and pinned_ver:
-            rec_alt = f"{pkg_name}-alternative"
-            return VerdictResponse(
-                decision="BORROW",
-                confidence_score=0.90,
-                confidence_level="HIGH",
-                confidence_factors=[
-                    "Active Security Advisory on Latest Release",
-                    f"Safe Pinned Version Available (v{pinned_ver})",
-                    "100% Backward Compatible Major Branch"
-                ],
-                reasoning=[
-                    f"Package '{pkg_name}' contains {active_cve} active unpatched security advisory on latest release.",
-                    f"Existing codebase recommendation: Pin to clean release v{pinned_ver} in the same SemVer branch for 100% backward compatibility with 0 CVEs.",
-                    f"Fresh project recommendation: You can adopt v{pinned_ver} or evaluate clean alternative '{rec_alt}' to avoid starting on an unpatched upstream release."
-                ],
-                recommended_alternative=rec_alt,
-                recommended_alternative_system=system,
-                recommended_pinned_version=pinned_ver
-            )
-        elif active_cve > 0 or status_val == "VULNERABLE":
-            rec_alt = f"{pkg_name}-alternative"
-            return VerdictResponse(
-                decision="MIGRATE",
-                confidence_score=0.95,
-                confidence_level="HIGH",
-                confidence_factors=["Unpatched Security Vulnerability on Current Release", "No Safe Compatible Release in 12-Month Horizon"],
-                reasoning=[
-                    f"Package '{pkg_name}' contains {active_cve} active, unpatched security advisories on current release.",
-                    "No clean vulnerability-free release exists in the same SemVer branch within the last 12 months.",
-                    "Migrating to an actively maintained alternative is required."
-                ],
-                recommended_alternative=rec_alt,
-                recommended_alternative_system=system,
-                recommended_pinned_version=None
-            )
-
-        # 2. Micro-Utility / Trivial Code Check (BUILD)
-        if user_requirement and is_micro_utility_requirement(user_requirement):
-            return VerdictResponse(
-                decision="BUILD",
-                confidence_score=0.90,
-                confidence_level="HIGH",
-                confidence_factors=["Single-Function Utility (< 25 LOC)", "Zero Third-Party Dependency Footprint"],
-                reasoning=[
-                    f"Target package '{pkg_name}' is healthy/stable, but the requirement is a trivial micro-utility (under ~25 lines of code).",
-                    f"Importing an external library or binary dependency solely for a single-function helper introduces unnecessary dependency bloat.",
-                    f"Building in-house eliminates third-party bloat. Use an inline helper unless your project already relies on '{pkg_name}' for broader workflows."
-                ],
-                recommended_alternative=None,
-                estimated_build_effort="~5-15 lines of code, ~5 mins"
-            )
-
-        # 3. "Finished Software" vs. "Dead Software" Check
-        if is_ab or status_val == "ABANDONED_STRUGGLING":
-            rec_alt = f"{pkg_name}-alternative"
-            dec = "MIGRATE"
-            reasoning_bullets = [
-                f"Package '{pkg_name}' shows project abandonment and struggling issue resolution.",
-                "Stagnant maintenance signals suggest migrating to an active alternative.",
-                "Adopting an active library prevents technical debt accumulation."
-            ]
-        elif status_val == "UNCERTAIN_UNVERIFIED":
-            dec = "UNVERIFIED_CANDIDATES"
-            rec_alt = None
-            reasoning_bullets = [
-                f"Package '{pkg_name}' repository metadata could not be resolved or verified in the {system} registry.",
-                "Telemetry and source repository activity are unavailable for health scoring.",
-                "Please verify registry connection or evaluate by exact package name."
-            ]
-        elif health_score >= 50 or status_val in ["MATURE_STABLE", "MAINTAINED_ACTIVE"]:
-            dec = "BORROW"
-            rec_alt = None
-            reasoning_bullets = [
-                f"Package '{pkg_name}' is a mature, feature-complete library (health score: {health_score}/100).",
-                f"Security check passed with 0 active CVEs on current release ({patched_cve} historical CVEs fully patched).",
-                "Borrowing this package provides optimal productivity over building in-house."
-            ]
-        else:
-            dec = "BUILD"
-            rec_alt = None
-            reasoning_bullets = [
-                f"Package '{pkg_name}' shows weak activity momentum (health score: {health_score}/100).",
-                "Implementing a focused zero-dependency utility eliminates external bloat.",
-                "Zero third-party dependencies ensure long-term stability."
-            ]
-
-        is_archived_flag = "ARCHIVED" in diagnosis_output.get("confidence_reason", "").upper() or "ARCHIVED" in diagnosis_output.get("explanation", "").upper() or bool(diagnosis_output.get("is_archived"))
-        conf_score, conf_level, conf_factors = calculate_formulaic_confidence(
-            has_history=bool(forecast_analysis),
-            has_issues=True,
-            has_security=bool(security_context),
-            llm_delta=0.0,
-            is_archived=is_archived_flag
-        )
-        if not is_archived_flag:
-            conf_factors.append("⚠️ Rule-based algorithmic evaluation (AI service unavailable)")
-
-        return VerdictResponse(
-            decision=dec,
-            confidence_score=conf_score,
-            confidence_level=conf_level,
-            confidence_factors=conf_factors,
-            reasoning=reasoning_bullets,
-            recommended_alternative=rec_alt,
-            recommended_alternative_system=system if dec == "MIGRATE" else None,
-            estimated_build_effort="~25 lines of code, ~15 mins" if dec == "BUILD" else None
-        )
-
-    if not api_key:
-        return _rule_based_verdict_fallback()
 
     try:
         from google import genai
         from google.genai import types
+        from app.core.utils import call_gemini_with_retry
 
         client = genai.Client(api_key=api_key)
 
@@ -230,7 +110,7 @@ def generate_verdict(
         dependents = package_resolution.get("dependents_count", 0)
 
         prompt = (
-            f"You are the Senior Software Architecture Verdict Agent for BuildOrBorrow.\n"
+            f"You are the Senior Software Architecture Verdict Agent specialized in open-source dependency evaluation.\n"
             f"TARGET REPOSITORY GROUNDING:\n"
             f"- Ecosystem Registry: '{system}'\n"
             f"- Package Name: '{pkg_name}'\n"
@@ -248,54 +128,30 @@ def generate_verdict(
             f"- Historical Patched CVEs: {security_context.get('patched_historical_cves', 0)}\n"
             f"- Transitive Dependencies: {security_context.get('transitive_dependencies', 0)}\n"
             f"- License: {security_context.get('license', 'Unknown')}\n\n"
-            f"DECISION RULES:\n"
-            f"1. HISTORICAL PATCHED CVES VS ACTIVE CVES VS SAFE VERSION PINNING (BORROW / MIGRATE):\n"
-            f"   - Historical patched CVEs (active_cves_on_current_version == 0) represent active security stewardship, NOT a reason to abandon a library! If current release has 0 active CVEs, permit BORROW.\n"
-            f"   - When active_cves_on_current_version > 0 (an unpatched vulnerability is open on the current release):\n"
-            f"     * CHECK 1: If the library is abandoned, archived, or deprecated, you MUST set decision to MIGRATE (never pin a dying project).\n"
-            f"     * CHECK 2: If the library is actively maintained / mature and a 'Recommended Safe Pinned Version' (e.g. vX.Y.Z) is present in evidence:\n"
-            f"       - Set decision to BORROW.\n"
-            f"       - Set recommended_pinned_version to that safe version string.\n"
-            f"       - ALSO specify a modern clean alternative package in recommended_alternative.\n"
-            f"       - Provide dual-perspective advice in reasoning:\n"
-            f"         • Existing codebases: Advise pinning to vX.Y.Z in the same major branch for 100% backward compatibility with 0 CVEs.\n"
-            f"         • Fresh projects: Advise that developers can adopt vX.Y.Z or evaluate recommended_alternative to avoid starting on an unpatched upstream release.\n"
-            f"     * CHECK 3: If active CVEs exist and NO safe pinned version is available in evidence, you MUST set decision to MIGRATE.\n"
-            f"2. DYNAMIC MICRO-UTILITY & TRIVIAL TASK CLASSIFICATION (BUILD):\n"
-            f"   - Dynamically analyze if:\n"
-            f"     a) '{pkg_name}' itself is a single-function micro-utility library (e.g. left-pad, is-even, pad-left, clamp, is-number), OR\n"
-            f"     b) The user feature requirement is a trivial task (under ~25 lines of code, single-function helper like clamping a float, string padding, null check, string repetition, slugification, case conversion, or array flattening).\n"
-            f"   - If either condition is met, set decision to BUILD and set estimated_build_effort (e.g. '~5-15 lines of code, ~5 mins').\n"
-            f"   - When a heavy foundation library (e.g. numpy, lodash, pandas) is requested for a trivial task (e.g. clamping a float):\n"
-            f"     * Bullet 1: Acknowledge that the target library ('{pkg_name}') is a mature, healthy, industry-standard library with 0 active CVEs.\n"
-            f"     * Bullet 2: Explain that importing a heavy binary/library dependency solely for a 2-line scalar helper introduces unnecessary dependency bloat and slower startup times.\n"
-            f"     * Bullet 3: Explicitly advise: 'Build a 2-line inline min(max(...)) helper in-house, unless your application already depends on {pkg_name} for broader scientific/matrix workflows.'\n"
-            f"3. DYNAMIC DEPRECATED / SUPERSEDED / RENAMED CLASSIFICATION (MIGRATE):\n"
-            f"   - Dynamically evaluate if '{pkg_name}' is officially deprecated, unmaintained, legacy, or superseded by a modern alternative library across ANY ecosystem (e.g. passlib -> argon2-cffi, pep8 -> pycodestyle, node-uuid -> uuid, requests-async -> httpx, mysql-python -> mysqlclient, rustc-serialize -> serde, pycrypto -> pycryptodome, moment -> dayjs, bower -> npm, request -> axios).\n"
-            f"   - If deprecated or superseded, set decision to MIGRATE and specify the modern active replacement package in recommended_alternative.\n"
-            f"4. MATURE BEDROCK OVERRIDE (BORROW):\n"
-            f"   - A package can ONLY qualify for Mature Bedrock Override if the target repository '{project_name}' on system '{system}' has verified high adoption AND the requested feature requirement represents broad non-trivial usage of the library.\n"
-            f"   - DO NOT trigger Bedrock Override if the requested task is a trivial micro-utility (e.g. scalar float clamp) that can be written in 2 lines without the library.\n"
-            f"5. DOMAIN RELEVANCE & ANTI-OVERKILL GUARD (PACKAGE MODE):\n"
-            f"   - When evaluating a specific package '{pkg_name}' paired with a user requirement '{user_requirement}', evaluate whether '{pkg_name}' actually belongs to the functional problem domain of the requirement.\n"
-            f"   - If '{pkg_name}' is healthy/active, but its primary domain has ZERO functional relevance to the requirement (e.g. using a 500MB animation/video engine 'manim' for 'web caching', or a dataframe library for 'audio playback', or a database driver for 'string parsing'):\n"
-            f"     * FORBID 'BORROW'. Do not recommend importing an irrelevant heavy stack simply because the package itself is healthy.\n"
-            f"     * If the task is lightweight or standard, set decision to BUILD and advise standard library primitives (e.g. '@functools.lru_cache', 're', 'urllib') or suggest a domain-appropriate library in recommended_alternative (e.g. 'cachetools').\n"
-            f"     * Bullet 1: Clarify that '{pkg_name}' is a healthy library in its own domain, but functionally mismatched for '{user_requirement}'.\n"
-            f"     * Bullet 2: Warn that importing an unrelated heavy domain library introduces massive dependency bloat, compilation overhead, and unnecessary supply-chain attack surface.\n"
-            f"     * Bullet 3: Provide the domain-appropriate recommendation (standard library build or purpose-built package).\n"
-            f"6. DEFAULT BORROW:\n"
-            f"   - Recommend BORROW if the package is mature, active, or stable, is functionally relevant to the domain, and the feature requirement is non-trivial.\n\n"
+            f"ARCHITECTURAL DECISION GUIDELINES:\n"
+            f"1. SECURITY EVALUATION & SAFE PINNING (BORROW / MIGRATE):\n"
+            f"   - Historical patched CVEs with 0 active vulnerabilities on the current release indicate responsible security stewardship; recommend BORROW.\n"
+            f"   - If active unpatched vulnerabilities exist on the latest release:\n"
+            f"     * If the library is abandoned, archived, or struggling, recommend MIGRATE to a healthy alternative.\n"
+            f"     * If the library is actively maintained and a safe pinned version is available in evidence, recommend BORROW with recommended_pinned_version set to that version string. Provide dual advice: pin to that clean version for existing codebases, while suggesting recommended_alternative for fresh projects.\n"
+            f"     * If active vulnerabilities exist with no safe compatible pinned version, recommend MIGRATE.\n"
+            f"2. TASK COMPLEXITY & UTILITY SCOPE (BUILD):\n"
+            f"   - Evaluate whether '{pkg_name}' is a single-function micro-utility or the requested requirement is a trivial task (< 25 lines of code, e.g. scalar clamp, string padding, null check).\n"
+            f"   - If so, recommend BUILD with an estimated_build_effort. Acknowledge the library's stability if it is a major package (e.g. numpy, lodash), but recommend building an inline helper to avoid unnecessary binary/dependency bloat unless the project already uses the library broadly.\n"
+            f"3. DEPRECATION & SUPERSEDED PACKAGES (MIGRATE):\n"
+            f"   - If '{pkg_name}' is deprecated, unmaintained, or superseded by modern industry standards (e.g. passlib -> argon2-cffi, pep8 -> pycodestyle, moment -> dayjs, request -> axios), recommend MIGRATE and specify the modern alternative in recommended_alternative.\n"
+            f"4. DOMAIN RELEVANCE & ANTI-OVERKILL:\n"
+            f"   - If '{pkg_name}' is completely mismatched to the requested requirement (e.g. video rendering engine for web caching), do not recommend BORROW. Recommend BUILD with standard library primitives or specify a domain-appropriate library in recommended_alternative.\n"
+            f"5. GENERAL STABILITY (BORROW):\n"
+            f"   - If the package is healthy, stable, active, domain-relevant, and the requirement represents non-trivial software functionality, recommend BORROW.\n\n"
             f"OUTPUT REQUIREMENTS:\n"
-            f"- Set decision to BORROW, MIGRATE, or BUILD.\n"
+            f"- Set decision to BORROW, MIGRATE, BUILD, or UNVERIFIED_CANDIDATES.\n"
             f"- Set confidence_score (0.0 to 1.0) and confidence_level (HIGH, MEDIUM, or LOW).\n"
-            f"- Provide 3 key reasoning bullet points.\n"
+            f"- Provide concise, authoritative reasoning bullet points.\n"
             f"- If BUILD, provide estimated_build_effort (e.g. '15 lines of code, ~10 mins').\n"
-            f"- If MIGRATE, set recommended_alternative to the suggested replacement package name.\n"
+            f"- If MIGRATE, set recommended_alternative and recommended_alternative_system.\n"
             f"- If BORROW with version pin, set recommended_pinned_version to the safe release version string."
         )
-
-        from app.core.utils import call_gemini_with_retry
 
         response = call_gemini_with_retry(
             client=client,
@@ -318,12 +174,6 @@ def generate_verdict(
             verdict.confidence_level = conf_level
             verdict.confidence_factors = conf_factors
 
-            # Preserve recommended_pinned_version from evidence if decision is BORROW and pin is present
-            safe_pin_from_evidence = security_context.get("recommended_pinned_version")
-            if verdict.decision == "BORROW" and safe_pin_from_evidence:
-                verdict.recommended_pinned_version = safe_pin_from_evidence
-                if f"Safe Pinned Version Available (v{safe_pin_from_evidence})" not in verdict.confidence_factors:
-                    verdict.confidence_factors.append(f"Safe Pinned Version Available (v{safe_pin_from_evidence})")
             logger.info(f"   [Verdict Agent] Decision: '{verdict.decision}' (Score: {verdict.confidence_score} - {verdict.confidence_level})")
             if verdict.reasoning:
                 logger.info(f"   [Verdict Agent] Key Reasoning:")
@@ -335,8 +185,16 @@ def generate_verdict(
                 logger.info(f"   [Verdict Agent] Estimated Build Effort: {verdict.estimated_build_effort}")
             return verdict
         else:
-            return _rule_based_verdict_fallback()
+            raise HTTPException(
+                status_code=503,
+                detail="Gemini AI verdict synthesis failed to generate a valid structured verdict response."
+            )
 
+    except HTTPException:
+        raise
     except Exception as e:
-        logger.error(f"Error in Verdict Agent call ({e}). Triggering formulaic verdict fallback...")
-        return _rule_based_verdict_fallback()
+        logger.error(f"Error in Verdict Agent call: {e}")
+        raise HTTPException(
+            status_code=503,
+            detail=f"AI verdict generation service failed: {e}"
+        )
