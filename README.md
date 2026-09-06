@@ -1,474 +1,537 @@
-# BuildOrBorrow: Project Details & Specification
----
+# BuildOrBorrow: AI-Powered Dependency Health Evaluator & Decision Engine
 
-## 1. Final Project Idea
+[![Python Version](https://img.shields.io/badge/python-3.10%2B-blue.svg)](https://www.python.org/)
+[![FastAPI](https://img.shields.io/badge/FastAPI-0.100%2B-009688.svg)](https://fastapi.tiangolo.com/)
+[![React Version](https://img.shields.io/badge/react-19.2%2B-61dafb.svg)](https://react.dev/)
+[![Vite](https://img.shields.io/badge/vite-8.2%2B-646cff.svg)](https://vitejs.dev/)
+[![Google Gemini](https://img.shields.io/badge/Google%20Gemini-3.5%20%2F%203.6-8E75B2.svg)](https://deepmind.google/technologies/gemini/)
+[![Google Cloud BigQuery](https://img.shields.io/badge/BigQuery-ML%20ARIMA__PLUS-4285F4.svg)](https://cloud.google.com/bigquery)
+[![License](https://img.shields.io/badge/license-MIT-green.svg)](LICENSE)
 
-Developers often evaluate software dependencies using current snapshots such as GitHub stars, latest commit date, open issues, and current vulnerabilities. **BuildOrBorrow** instead examines how a dependency has behaved over the previous 18–24 months, forecasts its activity approximately 90 days into the future, interprets the resulting trajectory, and recommends whether the developer should continue using the dependency, migrate to an alternative, or build a small replacement.
-
-> **Core Idea:** Observe the dependency's trajectory, forecast its near-term health, diagnose what the trend means, and convert that evidence into an actionable developer decision.
-
----
-
-## 2. What Makes the Project Distinct
-
-The project should not be positioned as simply predicting whether a GitHub repository will be abandoned. That research problem already has prior work. The stronger contribution is to investigate whether longitudinal dependency-health forecasting can be converted into an actionable developer decision: **BORROW**, **MIGRATE**, or **BUILD**.
-
-```
-Current dependency information
-              +
-18–24 month repository behavior
-              +
-    90-day activity forecast
-              +
-  Security / dependency burden
-              +
-Context about the functionality being used
-              +
-    LLM-based interpretation
-              ↓
-  Actionable recommendation
-```
+**BuildOrBorrow** is an intelligent software dependency health evaluator and decision engine. Instead of evaluating third-party dependencies using static point-in-time snapshots (such as current GitHub stars, latest commit date, or current issue counts), **BuildOrBorrow** analyzes **104 weeks (~2 years)** of historical activity, generates a **90-day time-series forecast via BigQuery ML `ARIMA_PLUS`**, inspects security vulnerabilities and dependency burden using Google `deps.dev`, evaluates open GitHub issue severity via the GitHub REST API, and uses multi-agent Generative AI (powered by Google Gemini) to diagnose maintenance trends and deliver actionable developer decisions: **BORROW**, **MIGRATE**, or **BUILD**.
 
 ---
 
-## 3. Complete System Flow
+## Table of Contents
 
-```
-                      USER
-                       │
-                       ▼
-         Package name OR task description
-                       │
-                       ▼
-              Input classification
-                       ├── Package input ────────────────────────┐
-                       └── Task input                            │
-                           │                                     │
-                           ▼                                     │
-                    Gemini identifies                            │
-                  exactly 3 candidates                           │
-                           │                                     │
-         ┌─────────────────┼─────────────────┐                   │
-         ▼                 ▼                 ▼                   │
-    Candidate A       Candidate B       Candidate C              │
-         └─────────────────┬─────────────────┘                   │
-                           ▼                                     │
-               REUSABLE PACKAGE PIPELINE <───────────────────────┘
-         ┌─────────────────┼─────────────────┐
-         ▼                 ▼                 ▼
-      Package           Security         Historical
-    Resolution           /Bloat           Activity
-         └─────────────────┼─────────────────┘
-                           ▼
-                      Forecasting
-                      ARIMA_PLUS
-                           ▼
-                    diagnosis_agent
-                           ▼
-                     verdict_agent
-         ┌─────────────────┼─────────────────┐
-         ▼                 ▼                 ▼
-      BORROW            MIGRATE            BUILD
-         │                 │                 │
-         │        Analyze alternative        │
-         │           builder_agent <─────────┘
-         └─────────────────┬─────────────────┘
-                           ▼
-                        React UI
-```
+- [Key Features](#features)
+- [Tech Stack](#tech-stack)
+- [Architecture & Pipeline Flow](#architecture--how-it-works)
+- [Project Structure](#project-structure)
+- [Prerequisites](#prerequisites)
+- [Installation & Setup](#installation--setup)
+- [Environment Variables](#environment-variables)
+- [Running the Project](#running-the-project)
+- [Usage Examples](#usage)
+- [API Documentation](#api-documentation)
+- [Data Warehouse & BigQuery ML](#database)
+- [Testing & Benchmarking](#testing)
+- [Deployment](#deployment)
+- [Troubleshooting](#troubleshooting)
+- [Future Improvements](#future-improvements)
+- [Contributing](#contributing)
+- [License](#license)
 
 ---
 
-## 4. Step 0: User Input
+## Features
 
-The frontend should use a single-screen, single-submit flow. The user enters either an exact package name or a task description. A toggle distinguishes the two modes. An optional feature field records what specific functionality the developer actually uses.
-
-```text
-What are you looking for?
-[ feedparser ]
-
-■ Exact package name
-■ A task I need to solve
-
-What specific feature do you use?
-[ Parse RSS feeds and extract title/link ]
-
-[ Analyze ]
-```
-
----
-
-## 5. Two Input Paths
-
-- **Exact package:** Resolve the package and run it through the pipeline.
-- **Task description:** Gemini returns exactly three candidates, conceptually standard, lightweight, and modern. All three are then passed to the same reusable analysis pipeline in parallel.
-
-```python
-analyze_packages([package1, package2, package3])
-```
-
-The same reusable function is used for:
-- Single-package analysis
-- Task-based comparison
-- Alternative validation after **MIGRATE**
+- **Dual Evaluation Modes**:
+  - **Single Package Mode**: Deeply evaluates an exact package name across ecosystems (**PyPI**, **npm**, **Cargo**, **Go**, **Maven**).
+  - **Task Mode**: Accepts a plain-English task requirement (e.g., *"Parse RSS feeds in Python"*), uses the `Candidate Finder Agent` to surface 3 popular packages, screens them via `deps.dev`, and performs deep primary evaluation.
+- **Micro-Utility Fast-Path Bypass**: Automatically detects single-function micro-task requirements (< 25 LOC such as math clamping, string repeating, or null checking) and immediately issues a zero-dependency **BUILD** verdict, bypassing heavy BigQuery data scans.
+- **Longitudinal Telemetry & ML Time-Series Forecasting**: Aggregates 104 weeks of historical GitHub activity (pushes, pull requests, open issues, star velocity, active contributors) and projects developer activity 90 days into the future using BigQuery ML `ARIMA_PLUS`.
+- **Security & Dependency Burden Scanning**: Leverages Google `deps.dev` BigQuery datasets to evaluate direct/transitive vulnerability severity counts (**CRITICAL**, **HIGH**, **MEDIUM**, **LOW**), license compatibility, and transitive dependency depth.
+- **GitHub Issue Severity Analysis**: Scans recent open issue titles via the GitHub REST API to distinguish mature, feature-complete *"finished software"* from struggling projects burdened by unaddressed bug debt.
+- **Multi-Agent GenAI Decision Engine (Google Gemini)**:
+  - `Candidate Finder Agent`: Identifies 3 modern, well-maintained candidate packages for task requests.
+  - `Diagnosis Agent`: Distinguishes feature-complete mature projects (`MATURE_STABLE`) from struggling or abandoned projects (`ABANDONED_STRUGGLING`).
+  - `Verdict Agent`: Integrates a Calculative Confidence Engine (Formulaic Base + LLM Delta + Hard Caps) to issue the final decision (**BORROW**, **MIGRATE**, **BUILD**, or **UNVERIFIED_CANDIDATES**).
+  - `Builder Agent`: Generates clean, production-ready, zero-dependency code replacements when the verdict is **BUILD**.
+- **Alternative Verification Loop**: Automatically suggests, screens, and verifies healthier alternative packages when a package receives a **MIGRATE** decision.
+- **Interactive Modern UI**: Built with React 19, TypeScript, Vite, Recharts, and Lucide React icons, featuring expandable 6-step pipeline accordions, interactive forecast charts, candidate comparison grids, and a raw JSON inspector.
+- **Empirical Benchmark Suite**: Automated Python test runner (`run_tests.py`) evaluating 25 benchmark scenarios against expected decisions in `test_dataset.csv`.
 
 ---
 
-## 6. Stage 1: Resolve Package
+## Tech Stack
 
-**Data Source:** `deps.dev` BigQuery. Resolve package name, ecosystem, project, repository, GitHub URL, and license. This stage is deterministic and uses no AI.
+### Backend
+- **Language**: Python 3.10+
+- **Framework**: FastAPI (>= 0.100.0), Uvicorn (>= 0.22.0)
+- **Data Validation & Settings**: Pydantic v2, `pydantic-settings`, `python-dotenv`
+- **AI / GenAI SDK**: `google-genai` (>= 0.1.0) featuring `gemini-3.5-flash-lite`, `gemini-3.6-flash`, and `gemini-3.1-flash-lite`
+- **Cloud & Data Warehouse**: `google-cloud-bigquery` (>= 3.10.0), GH Archive, Open Source `deps.dev` BigQuery datasets, BigQuery ML (`ARIMA_PLUS`)
+- **HTTP Client**: `requests` (>= 2.31.0)
 
-```
-Packages ──> Deps.dev ──> Project ──> GitHub repository ──> License
-```
-
-**Edge Cases:** Package not found, renamed/transferred repositories, deleted or archived repositories, and monorepos where repository-level activity may not represent package-level health.
-
----
-
-## 7. Stage 2: Security and Dependency Burden
-
-Use `deps.dev` to retrieve known direct and transitive vulnerabilities, license information, and dependency burden. The first version can use total transitive dependency count as the simple burden metric. Dependency graph depth can be added later if useful.
-
-```text
-Security & Dependency Check
-  Direct vulnerabilities:    0
-  Transitive vulnerabilities: 1
-
-  Direct dependencies:       5
-  Transitive dependencies:   27
-
-  License: MIT
-```
+### Frontend
+- **Framework**: React 19.2+, Vite 8.2+
+- **Language**: TypeScript 6.0+
+- **Data Visualization**: Recharts (>= 2.15.1)
+- **Icons & Styling**: Lucide React (>= 0.475.0), Vanilla CSS (Custom dark-mode glassmorphism theme)
+- **Code Highlighting**: `react-syntax-highlighter` (>= 15.6.1)
+- **HTTP & Utilities**: Axios (>= 1.7.9)
 
 ---
 
-## 8. Stage 3: Historical Trend
+## Architecture / How It Works
 
-**Data Source:** GH Archive through BigQuery. Use approximately 18–24 months of GitHub activity and aggregate it weekly. At minimum, collect push activity, issues, pull requests, forks, and watches. For technical accuracy, call `PushEvent` counts 'push activity' rather than automatically calling them commits unless commits are explicitly counted from the event payload.
-
-| Week | Pushes | Issues | PRs | Forks | Watches |
-|:---:|:---:|:---:|:---:|:---:|:---:|
-| W1 | 42 | 8 | 5 | 2 | 13 |
-| W2 | 39 | 7 | 6 | 1 | 11 |
-| W3 | 45 | 9 | 4 | 3 | 14 |
-| ... | ... | ... | ... | ... | ... |
-| W80 | 9 | 2 | 1 | 0 | 2 |
-
----
-
-## 9. Stage 3B: Forecasting
-
-Use BigQuery ML `ARIMA_PLUS` to forecast approximately 90 days ahead. The 18–24 month history provides context, while the forecast supplies the short-term trajectory. The system must not claim to predict the package's entire future or guarantee abandonment.
+BuildOrBorrow operates as a 6-stage evaluation pipeline. Below is the system flow for both Single Package Mode and Task Mode:
 
 ```
-18–24 months historical activity
-               │
-               ▼
-           ARIMA_PLUS
-               │
-               ▼
-     approximately 90 days
-               │
-               ▼
- Forecast + prediction interval
+                                     USER INPUT
+                                         │
+                   ┌─────────────────────┴─────────────────────┐
+                   ▼                                           ▼
+          [ Package Mode ]                              [ Task Mode ]
+       (e.g., "feedparser")                   (e.g., "Parse RSS feeds in Python")
+                   │                                           │
+                   │                             Is Micro-Utility (< 25 LOC)?
+                   │                                   ├── YES ──► Fast-Path BUILD
+                   │                                   └── NO  ──► Candidate Finder Agent
+                   │                                                   (Suggests 3 packages)
+                   │                                                           │
+                   └─────────────────────┬─────────────────────────────────────┘
+                                         ▼
+                             Stage 1: Package Resolution
+                              (deps.dev BigQuery Dataset)
+                                         │
+                                         ▼
+                         Stage 2: Security & Dependency Scan
+                              (deps.dev BigQuery Dataset)
+                                         │
+                                         ▼
+                     Stage 3: 104-Week Activity & 90-Day Forecast
+                          (GH Archive + BigQuery ML ARIMA_PLUS)
+                                         │
+                                         ▼
+                          Stage 4: GitHub Issue Severity
+                               (GitHub REST API v3)
+                                         │
+                                         ▼
+                             Stage 5: Diagnosis Agent
+                              (Google Gemini GenAI)
+                                         │
+                                         ▼
+                              Stage 6: Verdict Agent
+                              (Google Gemini GenAI)
+                                         │
+         ┌───────────────────────────────┼───────────────────────────────┐
+         ▼                               ▼                               ▼
+    [ BORROW ]                      [ MIGRATE ]                      [ BUILD ]
+ Continue using                Alternative Verification            Builder Agent
+  dependency                   Loop & Comparison View            Zero-Dep Code Snippet
 ```
 
-**Confidence:** The UI may label forecast confidence using prediction-interval width, but this should be described as *forecast certainty*, not the probability that the package will be abandoned.
+### Actionable Decisions Summary
+
+| Decision | Condition & Meaning |
+| :--- | :--- |
+| **BORROW** | The dependency is actively maintained or mature/stable, secure, and appropriate to adopt into your codebase. |
+| **MIGRATE** | The dependency is abandoned, struggling, or vulnerable. The system automatically suggests and verifies a healthier alternative package. |
+| **BUILD** | The requirement is a lightweight micro-utility (< 25 LOC) or the existing packages are bloated/risky. The system generates an in-house, zero-dependency implementation. |
+| **UNVERIFIED_CANDIDATES** | Complex task requirements whose suggested packages could not be verified in the target ecosystem registry. |
 
 ---
 
-## 10. Stage 4: `diagnosis_agent`
-
-This is the first stage where Generative AI is genuinely useful. Gemini receives structured quantitative evidence, the forecast, security/dependency context, **and the titles of the 10–20 most recent issues, fetched via the GitHub REST API.** Its job is to interpret what the trend means rather than invent the underlying numbers.
-
-> **Critical Distinction:** Differentiating between **declining but stable** and **declining and struggling**. A mature project with falling activity and almost no unresolved issues may be functionally complete. A project with falling activity plus increasing unresolved issues may be genuinely struggling.
-
-> **Why this matters:** Without real issue/PR text, this agent would be reasoning purely over numbers a rule-based threshold could mostly replicate. Reading actual issue content — not just counting how many are open — is what makes this step genuinely require AI rather than dressed-up arithmetic.
-
----
-
-## 11. Stage 5: `verdict_agent`
-
-The verdict agent combines the deterministic evidence, forecast, diagnosis, and the user's stated feature requirement. It returns one of three actions:
-
-| Verdict | Meaning |
-|:---|:---|
-| **BORROW** | Continue using the dependency because the project is sufficiently stable or mature for the required use. |
-| **MIGRATE** | Move to an alternative because the dependency's trajectory, issues, security, or other evidence creates meaningful risk. |
-| **BUILD** | Implement the required functionality directly when the feature is small enough and taking another dependency is not justified. |
-
----
-
-## 12. Alternative Validation Loop
-
-If the verdict is **MIGRATE**, do not simply name an alternative. Run the suggested alternative through the same reusable package pipeline. The UI should explain concretely why the alternative is better using real numbers.
+## Project Structure
 
 ```
-Current package ──> MIGRATE ──> Gemini suggests alternative ──> Alternative package
-                                                                       │
-                                                                       ▼
-                                                                 Same pipeline
-                                                                       │
-                                                                       ▼
-                                                       Forecast + Security + Dependencies + Diagnosis
-                                                                       │
-                                                                       ▼
-                                                             Side-by-side comparison
-                                                                       │
-                                                                       ▼
-                                                         "Alternative is better because..."
+buildOrBorrow/
+├── backend/                        # FastAPI Backend Application
+│   ├── app/
+│   │   ├── agents/                 # Google Gemini AI Multi-Agent Engine
+│   │   │   ├── builder.py          # Zero-dependency code generation agent
+│   │   │   ├── candidate_finder.py # Task-to-candidate package discovery agent
+│   │   │   ├── diagnosis.py        # Health diagnosis & issue severity agent
+│   │   │   └── verdict.py          # Final decision & calculative confidence engine
+│   │   ├── api/
+│   │   │   └── endpoints/          # REST API endpoints
+│   │   │       ├── deps_dev.py     # deps.dev resolution & security endpoints
+│   │   │       ├── evaluate.py     # Main full evaluation pipeline endpoint
+│   │   │       ├── forecast.py     # BigQuery ML ARIMA_PLUS forecast endpoints
+│   │   │       └── gh_archive.py   # Historical GitHub activity endpoints
+│   │   ├── core/                   # Core application configuration & infrastructure
+│   │   │   ├── bigquery.py         # Google BigQuery client initializer
+│   │   │   ├── config.py           # 12-factor application settings & limits
+│   │   │   └── utils.py            # Gemini retry handlers & helper utilities
+│   │   ├── models/                 # Pydantic data schemas & response DTOs
+│   │   ├── queries/                # BigQuery SQL queries (deps.dev & GH Archive)
+│   │   ├── services/               # Internal services (forecasting, GitHub issues, verification)
+│   │   └── main.py                 # FastAPI app entry point & CORS configuration
+│   ├── logs/                       # Test suite run output logs
+│   ├── requirements.txt            # Backend Python dependencies
+│   ├── run_tests.py                # Automated benchmark execution script
+│   └── test_dataset.csv            # 25 benchmark evaluation test cases
+├── frontend/                       # React 19 + Vite Frontend Application
+│   ├── src/
+│   │   ├── components/             # Modular React UI components
+│   │   │   ├── code/               # Zero-dependency code replacement viewer
+│   │   │   ├── common/             # Search form & header controls
+│   │   │   ├── inspector/          # Raw JSON data inspector
+│   │   │   ├── Pipeline/           # 6-step accordion pipeline & Recharts graphs
+│   │   │   └── verdict/            # Verdict hero card, candidate grid & migration views
+│   │   ├── services/               # API client (Axios) & session storage cache
+│   │   ├── types/                  # TypeScript interface definitions (api.ts)
+│   │   ├── App.tsx                 # App layout & evaluation state coordinator
+│   │   └── main.tsx                # React DOM render entry point
+│   ├── package.json                # Frontend npm dependencies & scripts
+│   └── vite.config.ts              # Vite bundle configuration
+├── docs/                           # Technical documentation & architecture guides
+│   └── bigquery_warehouse.md       # BigQuery Warehouse DDL, ML Model & IAM setup guide
+├── dryrun/                         # CLI testing utilities
+│   └── dry_run.py                  # CLI script for testing package resolution & issue fetching
+├── .env.example                    # Global backend environment configuration template
+└── README.md                       # Main project documentation
 ```
 
 ---
 
-## 13. Stage 6: `builder_agent`
+## Prerequisites
 
-The builder agent runs only for **BUILD**. It receives the task and the specific feature required and generates a small, preferably zero-dependency replacement. The result should be presented as a suggested implementation, not as guaranteed production-ready code.
+Before running BuildOrBorrow, ensure you have the following installed and configured:
+
+1. **Python**: Version `3.10` or higher
+2. **Node.js**: Version `18.0` or higher (with `npm`)
+3. **Google Cloud Platform (GCP) Account**:
+   - An active GCP Project ID with BigQuery API enabled.
+   - Authentication configured via standard GCP credentials (`gcloud auth application-default login`) or service account JSON key.
+4. **Google Gemini API Key**:
+   - Obtain an API key from [Google AI Studio](https://aistudio.google.com/).
+5. **GitHub Personal Access Token (Optional but Recommended)**:
+   - A standard GitHub PAT increases GitHub REST API rate limits from 60 to 5,000 requests/hour.
 
 ---
 
-## 14. Final UI
+## Installation & Setup
 
-The frontend should contain an expandable pipeline and a separate verdict card. Multiple pipeline rows can be open simultaneously. Each stage should show a one-line summary, detailed evidence when expanded, and a *Show Raw Data* control.
+Follow these step-by-step instructions to set up BuildOrBorrow locally:
 
-```text
-✓ 1. Resolve package
-  Found PyPI package ──> GitHub repository
-  MIT license
+### 1. Clone the Repository
 
-✓ 2. Security & dependency check
-  0 direct vulnerabilities
-  1 transitive vulnerability
-  27 transitive dependencies
-
-✓ 3. Trend forecast
-  Activity declining
-  90-day forecast continues downward
-
-■ 4. Diagnosis
-  Declining but stable
-
-✓ 5. Verdict
-  BORROW
-
-■ 6. Builder
-  Not required
+```bash
+git clone https://github.com/your-username/buildOrBorrow.git
+cd buildOrBorrow
 ```
 
-The verdict card should contain the recommendation, reasoning, license flag, forecast-confidence label, and *Copy as Markdown*. Task mode should show 2–3 candidate comparison cards, while a **MIGRATE** result should show the alternative side by side after it has been independently analyzed.
+### 2. Configure Backend Environment
 
----
+Copy the `.env.example` file to create your local `.env` file in the project root:
 
-## 15. Architecture
+```bash
+cp .env.example .env
+```
 
-```text
-backend/
-├── main.py
-├── models/
-│   ├── request_models.py
-│   └── response_models.py
-├── queries/
-│   ├── deps_dev.py
-│   ├── github_trend.py
-│   └── forecasting.py
-├── services/
-│   ├── package_resolver.py
-│   ├── security_service.py
-│   ├── trend_service.py
-│   ├── issue_context_service.py
-│   └── package_pipeline.py
-├── agents/
-│   ├── diagnosis_agent.py
-│   ├── verdict_agent.py
-│   └── builder_agent.py
-├── pipeline/
-│   ├── sequential_pipeline.py
-│   └── parallel_pipeline.py
-└── Dockerfile
+Open `.env` and fill in your credentials:
 
-frontend/
-├── src/
-│   ├── components/
-│   │   ├── SearchForm.jsx
-│   │   ├── Pipeline.jsx
-│   │   ├── PipelineStep.jsx
-│   │   ├── VerdictCard.jsx
-│   │   ├── ComparisonCard.jsx
-│   │   └── RawData.jsx
-│   ├── services/
-│   │   └── api.js
-│   ├── App.jsx
-│   └── main.jsx
-└── ...
+```env
+GCP_PROJECT=your-gcp-project-id
+GEMINI_API_KEY=your-gemini-api-key
+GITHUB_TOKEN=your-github-personal-access-token # Optional
+ENABLE_BIGQUERY_BYTE_LIMITS=true
+```
+
+### 3. Set Up Backend Virtual Environment
+
+```bash
+cd backend
+python -m venv .venv
+
+# Activate on Windows (PowerShell):
+.venv\Scripts\Activate.ps1
+
+# Activate on macOS/Linux:
+source .venv/bin/activate
+
+# Install required Python packages:
+pip install -r requirements.txt
+cd ..
+```
+
+### 4. Set Up Frontend Dependencies
+
+```bash
+cd frontend
+npm install
+cd ..
 ```
 
 ---
 
-## 16. API Design
+## Environment Variables
 
-**Main Endpoint:** `POST /analyze`
+### Backend Configuration (`.env`)
 
-### Request Examples
+| Variable | Description | Required | Default |
+| :--- | :--- | :---: | :--- |
+| `GCP_PROJECT` | Active Google Cloud Platform Project ID for BigQuery. | **Yes** | `None` |
+| `GEMINI_API_KEY` | Google Gemini API Key for multi-agent GenAI features. | **Yes** | `None` |
+| `GITHUB_TOKEN` | GitHub PAT to expand GitHub REST API rate limits (60 $\rightarrow$ 5000 req/hr). | No | `None` |
+| `ENABLE_BIGQUERY_BYTE_LIMITS` | Set `true` for development byte caps, `false` for unrestricted production. | No | `true` |
+| `BQ_GH_ARCHIVE_MAX_ALLOWED_MB` | Maximum MB billed cap for GH Archive historical scans. | No | `20000.0` (~20 GB) |
+| `GEMINI_MODEL_NAME` | Primary high-throughput model for AI agents. | No | `gemini-3.5-flash-lite` |
 
-**Package Mode:**
+### Frontend Configuration (`frontend/.env.example`)
+
+| Variable | Description | Required | Default |
+| :--- | :--- | :---: | :--- |
+| `VITE_API_BASE_URL` | Base URL for FastAPI backend endpoints. | No | `http://localhost:8000/api` |
+
+---
+
+## Running the Project
+
+To run BuildOrBorrow locally, start both the backend API server and frontend development server.
+
+### 1. Start FastAPI Backend
+
+```bash
+cd backend
+# Make sure virtual environment is activated
+uvicorn app.main:app --reload --port 8000
+```
+- **Backend API**: `http://localhost:8000`
+- **Interactive Swagger OpenAPI Docs**: `http://localhost:8000/docs`
+
+### 2. Start Vite Frontend
+
+In a separate terminal window:
+
+```bash
+cd frontend
+npm run dev
+```
+- **Web Application UI**: `http://localhost:5173`
+
+---
+
+## Usage
+
+### 1. Single Package Evaluation Mode
+1. Open `http://localhost:5173`.
+2. Select **Exact Package Name**.
+3. Select Ecosystem (e.g., `pypi`, `npm`, `cargo`, `go`, `maven`).
+4. Enter package name (e.g., `uvicorn`, `passlib`, or `clamp`).
+5. Click **Evaluate Dependency**.
+
+### 2. Task Requirement Mode
+1. Select **A Task I Need to Solve**.
+2. Enter your task description (e.g., *"Parse RSS feeds in Python"* or *"Restrict a numeric value between min and max boundary"*).
+3. Click **Evaluate Dependency**.
+4. View the suggested candidate packages grid, top candidate deep evaluation, decision banner, time-series forecast graph, or zero-dependency code replacement snippet.
+
+### 3. Running Standalone CLI Dry Run
+To verify BigQuery package resolution and GitHub issue fetching via CLI:
+
+```bash
+python dryrun/dry_run.py
+```
+
+---
+
+## API Documentation
+
+### Main Endpoint: `POST /api/evaluate`
+
+Executes the full 6-stage evaluation pipeline.
+
+#### Request Payload Examples
+
+**Single Package Request:**
 ```json
 {
-  "input": "feedparser",
+  "package_name": "passlib",
+  "system": "pypi",
+  "user_requirement": "Password hashing with bcrypt"
+}
+```
+
+**Task Requirement Request:**
+```json
+{
+  "task_description": "Parse RSS feeds in Python",
+  "system": "pypi"
+}
+```
+
+#### Response Payload Structure
+
+```json
+{
   "mode": "package",
-  "feature": "Parse RSS feeds"
-}
-```
-
-**Task Mode:**
-```json
-{
-  "input": "I need to parse RSS feeds in Python",
-  "mode": "task",
-  "feature": "Extract title and link"
-}
-```
-
-### Response Format
-
-The response should be structured JSON containing package resolution, security, trend, diagnosis, and verdict objects so the React frontend can render the result predictably:
-
-```json
-{
-  "packages": [
-    {
-      "package": {},
-      "security": {},
-      "trend": {},
-      "diagnosis": {},
-      "verdict": {}
+  "evaluation": {
+    "package_name": "passlib",
+    "system": "PYPI",
+    "github_url": "https://github.com/pyca/passlib",
+    "resolution": {
+      "name": "passlib",
+      "system": "PYPI",
+      "version": "1.7.4",
+      "licenses": ["BSD-3-Clause"]
+    },
+    "security": {
+      "critical_vulnerabilities": 0,
+      "total_vulnerabilities": 1,
+      "transitive_dependencies": 4,
+      "license": "BSD-3-Clause"
+    },
+    "forecast": {
+      "trend_direction": "DECLINING",
+      "health_score": 18.5,
+      "maintenance_verdict_signal": "AT_RISK_STAGNANT"
+    },
+    "diagnosis": {
+      "status": "ABANDONED_STRUGGLING",
+      "is_abandoned": true,
+      "explanation": "Package passlib has unmaintained repository telemetry and incompatibility with bcrypt 4.0+."
+    },
+    "verdict": {
+      "decision": "MIGRATE",
+      "confidence_score": 0.95,
+      "confidence_level": "HIGH",
+      "reasoning": [
+        "Unmaintained since 2020 with unaddressed bug debt",
+        "Migration recommended to bcrypt or argon2-cffi"
+      ],
+      "recommended_alternative": "argon2-cffi"
     }
-  ]
+  }
 }
 ```
 
----
+### Additional System Endpoints
 
-## 17. Where AI Is and Is Not Used
-
-| Stage | Technology | AI? |
-|:---|:---|:---|
-| Package resolution | BigQuery / `deps.dev` | No |
-| Security and dependency count | BigQuery / `deps.dev` | No |
-| Historical aggregation | BigQuery / GH Archive | No |
-| Forecasting | BigQuery ML `ARIMA_PLUS` | ML, not GenAI |
-| Diagnosis (incl. issue/PR text reasoning) | Gemini + ADK | Yes |
-| Verdict | Gemini + ADK | Yes |
-| Alternative reasoning | Gemini | Yes |
-| Replacement generation | Gemini + ADK | Yes |
+- `GET /api/deps-dev/package-info?package_name=requests&system=pypi`: Queries `deps.dev` package metadata & vulnerabilities.
+- `GET /api/gh-archive/activity?owner=psf&repo=requests&lookback_weeks=104`: Returns 104-week raw activity timeline from BigQuery.
+- `GET /api/gh-archive/package-activity?package_name=fastapi&system=pypi`: Resolves package to repo and retrieves activity timeline.
+- `GET /api/forecast/project?owner=psf&repo=requests`: Projects 90-day activity using BigQuery ML `ARIMA_PLUS`.
 
 ---
 
-## 18. Agent Architecture
+## Database
 
-### Single Package Analysis (`SequentialAgent`)
-```
-Root Agent
-    │
-    ▼
-SequentialAgent
-    │
-    ├───────────────────────┬───────────────────────┐
-    ▼                       ▼                       ▼
-DiagnosisAgent         VerdictAgent            BuilderAgent
-                                                    │
-                                              (only if BUILD)
-```
+BuildOrBorrow utilizes Google BigQuery for longitudinal data storage and ML forecasting.
 
-### Multi-Candidate Analysis (`ParallelAgent`)
-```
-ParallelAgent
-   ├── Package A ──┐
-   ├── Package B ──┼──> Comparison
-   └── Package C ──┘
-```
+### 1. Data Sources
+- `bigquery-public-data.deps_dev_v1`: Real-time dependency graphs, licenses, package versions, and OSV security advisories.
+- `githubarchive.month.*`: Multi-terabyte GitHub public event stream.
 
-> Using both `SequentialAgent` and `ParallelAgent` provides sequential reasoning for a single package and concurrent analysis for multiple candidates.
+### 2. Custom Data Warehouse Schema
+- **Dataset**: `build_or_borrow_dw`
+- **Table**: `github_weekly_activity`
+- **Volume**: ~17.3 Million pre-aggregated weekly activity records across 104 weeks.
+- **Optimization**: Partitioned by `week_start` (DATE) and clustered by `repo_name`. Bot accounts (`actor.login LIKE '%[bot]'`) are filtered out during aggregation.
+
+### 3. BigQuery ML `ARIMA_PLUS` Forecasting
+Time-series models project activity 13 weeks (~90 days) into the future. High-performance zero-scan inline parameter array passing (`UNNEST(@history)`) eliminates multi-gigabyte scans during model fitting.
+
+For full DDL queries, SQL aggregation scripts, and collaborator IAM setup guides, see [`docs/bigquery_warehouse.md`](docs/bigquery_warehouse.md).
 
 ---
 
-## 19. Data Sources
+## Testing
 
-| Requirement | Source | Assessment |
-|:---|:---|:---|
-| Package resolution | `deps.dev` BigQuery | Excellent |
-| GitHub repository | `deps.dev` BigQuery | Good |
-| License | `deps.dev` BigQuery | Good |
-| Security advisories | `deps.dev` BigQuery | Excellent |
-| Dependency counts | `deps.dev` BigQuery | Excellent |
-| Dependency graph | `deps.dev` BigQuery | Available |
-| Historical GitHub activity | GH Archive | Excellent |
-| Weekly trend features | GH Archive + BigQuery | Excellent |
-| 90-day forecast | BigQuery ML | Excellent |
-| Recent issue/PR text | GitHub REST API | **Required — MVP** |
+BuildOrBorrow includes an empirical benchmark test suite that verifies system verdicts against 25 real-world scenarios in `test_dataset.csv`.
 
-*Note: `deps.dev`, GH Archive, and the GitHub REST API (for issue titles) are sufficient to start the project. External sources like Reddit are unnecessary for the planned version.*
+### Running Benchmark Test Suite
 
----
-
-## 20. Scope and Limitations
-
-- Forecast horizon is approximately 90 days; this is an early-warning signal, not a long-range prophecy.
-- The system evaluates project-level health, not individual contributors.
-- License analysis only flags potential concerns; it does not provide legal advice.
-- Repository activity is an imperfect proxy for package-level health, especially for monorepos.
-- LLM diagnosis is reasoning over evidence, not ground truth.
-- Issue/PR context is limited to the 10–20 most recent issue titles (not full thread bodies), to control cost and context size.
-- The project does not include full technology-stack analysis.
-- Bundle-size analysis is out of scope.
-- Typosquatting and supply-chain name-similarity detection are future work.
-- Multi-turn conversational follow-up is intentionally out of scope.
-- Contributor recommendation matching is a possible Phase 2 idea.
-
----
-
-## 21. Recommended Learning Areas
-
-**Must Know:** Python, SQL, BigQuery, time-series basics, FastAPI, React, LLM concepts, and Google ADK.
-
-*You do not need to master advanced deep learning, train your own LLM, Kubernetes, advanced frontend animation, graph neural networks, or complicated distributed systems.*
-
----
-
-## 22. First Implementation Milestone
-
-> **Rule:** Do not start with the React UI or the agents. First prove the data and forecasting foundation.
-
-```
-One known healthy package
-           +
-One known declining/abandoned package
-           │
-           ▼
-Retrieve 18–24 months from GH Archive
-           │
-           ▼
-    Aggregate weekly
-           │
-           ▼
-    Run ARIMA_PLUS
-           │
-           ▼
-Inspect forecast and prediction interval
-           │
-           ▼
-Confirm that the pipeline produces sensible results
+```bash
+cd backend
+python run_tests.py
 ```
 
-**Only after this foundation works:**
-1. Build the `diagnosis_agent` (including the issue-title fetch)
-2. Build the `verdict_agent`
-3. Build the React UI
+The test runner will execute package-mode and task-mode evaluations, log individual test timings, compare actual decisions against expected benchmarks, and output a formatted report:
+
+```
+===================================================================================================
+ 🧪 BUILDORBORROW BENCHMARK TEST SUITE SUMMARY REPORT
+===================================================================================================
+📦 PART 1: PACKAGE MODE EVALUATIONS (14 Tests)
+| Test ID | Package      | System | Expected         | Actual Verdict       | Result |
+| PKG-001 | passlib      | pypi   | MIGRATE          | MIGRATE              | PASS   |
+| PKG-005 | clamp        | npm    | BUILD            | BUILD                | PASS   |
+| PKG-009 | cryptography | pypi   | BORROW           | BORROW               | PASS   |
+...
+===================================================================================================
+```
+
+Outputs are automatically saved to `backend/logs/test_run_latest.log`.
+
+### Frontend Code Quality
+
+```bash
+cd frontend
+# Run ESLint validation
+npm run lint
+
+# Run TypeScript build check
+npm run build
+```
 
 ---
 
-## 23. Data Warehouse & Collaborator Documentation
+## Deployment
 
-For detailed technical specifications on the custom BigQuery data warehouse, SQL DDL queries, BigQuery ML `ARIMA_PLUS` models, and collaborator IAM setup guides, see:
-* 📄 **[`docs/bigquery_warehouse.md`](file:///d:/Downloads/patchamomma/buildOrBorrow/docs/bigquery_warehouse.md)** — Complete BigQuery Warehouse DDL, ML Model & Collaborator Guide.
+### Backend Deployment (Docker / GCP Cloud Run)
+1. Build container image:
+   ```bash
+   cd backend
+   docker build -t buildorborrow-backend .
+   ```
+2. Set environment variables in Cloud Run: `GCP_PROJECT`, `GEMINI_API_KEY`, `ENABLE_BIGQUERY_BYTE_LIMITS=false`.
+3. Deploy to Cloud Run or AWS App Runner listening on port `8000`.
 
+### Frontend Deployment (Vercel / Netlify / Static Hosting)
+1. Build production static bundle:
+   ```bash
+   cd frontend
+   npm run build
+   ```
+2. Deploy the generated `dist/` directory to Vercel, Netlify, or Nginx.
+3. Configure `VITE_API_BASE_URL` to point to your live backend endpoint.
+
+---
+
+## Troubleshooting
+
+### 1. `403 Forbidden` / GitHub Rate Limit Exceeded
+- **Cause**: GitHub REST API unauthenticated rate limit (60 requests/hr) reached.
+- **Fix**: Add a valid `GITHUB_TOKEN` to your `.env` file.
+
+### 2. BigQuery `Query exceeded limit for bytes billed`
+- **Cause**: `ENABLE_BIGQUERY_BYTE_LIMITS=true` triggered byte cap safety rule.
+- **Fix**: Increase `BQ_GH_ARCHIVE_MAX_ALLOWED_MB` in `app/core/config.py` or set `ENABLE_BIGQUERY_BYTE_LIMITS=false` in production.
+
+### 3. Gemini API Quota / Network Error
+- **Cause**: Invalid API key or temporary Google GenAI service throttling.
+- **Fix**: Verify `GEMINI_API_KEY` in `.env`. The backend automatically triggers production-grade rule-based fallbacks if Gemini is unreachable.
+
+### 4. CORS Errors in Frontend
+- **Cause**: Frontend requests blocked by backend origin settings.
+- **Fix**: Verify backend `main.py` CORSMiddleware rules and check that `VITE_API_BASE_URL` matches your backend server port (`http://localhost:8000/api`).
+
+---
+
+## Future Improvements
+
+- **Dependency Graph Depth & Transitive Vulnerability Impact**: Expand transitive dependency tree depth scoring to measure indirect vulnerability propagation.
+- **Monorepo Disambiguation**: Enhance package-level vs repo-level activity disambiguation for multi-package monorepos.
+- **Supply Chain Name-Similarity & Typosquatting Detection**: Add automatic checks for typosquatting vulnerabilities and malicious package variants.
+- **Expanded Package Ecosystems**: Support additional registries such as RubyGems (`rubygems`), NuGet (`dotnet`), and Hex (`elixir`).
+
+---
+
+## Contributing
+
+Contributions are welcome! Please follow these guidelines:
+
+1. Fork the repository and create a feature branch (`git checkout -b feature/amazing-feature`).
+2. Run `python run_tests.py` inside `backend/` to verify zero regressions against the benchmark dataset.
+3. Ensure frontend code passes linting (`npm run lint`).
+4. Commit your changes and open a Pull Request.
+
+---
+
+## License
+
+This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.

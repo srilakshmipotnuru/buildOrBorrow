@@ -231,9 +231,15 @@ When a user asks for a trivial helper (e.g. *"left pad a string"*, *"slugify tex
 
 ---
 
-## 11. 🚀 Eliminate Ghost Scores & Task Scale Guard When `github_url == null` / Candidates Unverified
+## 11. 🚀 Eliminate Ghost Scores & Task Scale Guard When `github_url == null` / Candidates Unverified [DONE ✅]
 
-### **Problem Statement:**
+> [!NOTE]
+> **Implementation Summary (Completed):**
+> 1. **Ghost Score Elimination**: Defaulted `forecast_results` to `health_score = 0.0`, `trend_direction = "UNAVAILABLE"`, `maintenance_verdict_signal = "UNAVAILABLE"`, and `DiagnosisResponse.status = "UNCERTAIN_UNVERIFIED"` whenever `github_url == None` or package resolution fails. Prevented false `BORROW` hallucinated verdicts on unverified packages.
+> 2. **Task Scale Guard (`len(verified_candidates) == 0`)**:
+>    - Aborted deep analysis on unverified candidate #1. Screenings are retained showing all 3 unverified candidate cards in red.
+>    - **Micro-Tasks (< 25 LOC)**: Issued **`BUILD`** verdict with zero-dependency code replacement.
+>    - **Complex Tasks**: Issued **`UNVERIFIED_CANDIDATES`** verdict notice advising registry verification or evaluation by exact package name.
 1. **The Ghost 75 Score**:
    Currently, when `github_url == null` (or package resolution fails), lines 147–153 of `evaluate.py` inject a fake fallback:
    ```python

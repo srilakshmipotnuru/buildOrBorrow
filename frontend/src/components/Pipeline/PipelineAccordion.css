@@ -7,6 +7,17 @@
   margin-bottom: 2rem;
 }
 
+.fastpath-accordion-banner {
+  background: #fef3c7;
+  border: 1px solid #f59e0b;
+  color: #92400e;
+  padding: 0.75rem 1rem;
+  border-radius: 8px;
+  margin-bottom: 1.25rem;
+  font-size: 0.9rem;
+  line-height: 1.4;
+}
+
 .accordion-master-bar {
   display: flex;
   justify-content: space-between;

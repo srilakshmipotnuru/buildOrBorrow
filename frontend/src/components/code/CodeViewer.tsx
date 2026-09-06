@@ -25,7 +25,11 @@ export const CodeViewer: React.FC<CodeViewerProps> = ({ builder, packageName }) 
         <div className="header-title-group">
           <Hammer className="header-icon" />
           <div>
-            <h3>Zero-Dependency Code Replacement for <code>{packageName}</code></h3>
+            <h3>
+              {packageName.includes(' ')
+                ? 'Zero-Dependency In-House Code Replacement'
+                : `Zero-Dependency Code Replacement for ${packageName}`}
+            </h3>
             <p className="header-subtitle">{builder.explanation}</p>
           </div>
         </div>

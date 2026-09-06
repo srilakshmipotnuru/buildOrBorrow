@@ -45,6 +45,14 @@ export const VerdictCard: React.FC<VerdictCardProps> = ({
           icon: Hammer,
           className: 'verdict-build',
         };
+      case 'UNVERIFIED_CANDIDATES':
+        return {
+          label: 'UNVERIFIED CANDIDATES',
+          title: 'Candidate Packages Unverified in Registry',
+          subtitle: 'Could not verify candidate packages in registry for this complex task. Evaluate by exact package name.',
+          icon: AlertTriangle,
+          className: 'verdict-migrate',
+        };
       default:
         return {
           label: decision,
@@ -89,6 +97,8 @@ ${verdict.confidence_factors.map((f) => `- ${f}`).join('\n')}
     setTimeout(() => setCopied(false), 2000);
   };
 
+  const isFastPath = verdict.confidence_factors?.some((f) => f.includes('Bypassed BigQuery'));
+
   return (
     <div className={`ui-card verdict-card ${theme.className}`}>
       {/* Top Banner */}
@@ -98,6 +108,12 @@ ${verdict.confidence_factors.map((f) => `- ${f}`).join('\n')}
             <IconComponent className="verdict-icon" />
             <span className="verdict-label">{theme.label}</span>
           </div>
+
+          {isFastPath && (
+            <div className="fastpath-pill" title="Fast-Path Execution: Skipped BigQuery queries for micro-utility requirement (< 25 LOC)">
+              <span>⚡ Fast-Path (&lt; 300ms, $0 Query Cost)</span>
+            </div>
+          )}
 
           <div className="confidence-pill">
             <ShieldCheck className="conf-icon" />
@@ -132,6 +148,12 @@ ${verdict.confidence_factors.map((f) => `- ${f}`).join('\n')}
       <div className="verdict-body">
         <h2 className="verdict-title">{theme.title}</h2>
         <p className="verdict-subtitle">{theme.subtitle}</p>
+
+        {userRequirement && (
+          <div className="task-requirement-context">
+            <strong>Task Requirement:</strong> "{userRequirement}"
+          </div>
+        )}
 
         {/* MIGRATE Recommendation Banner */}
         {verdict.decision === 'MIGRATE' && verdict.recommended_alternative && (

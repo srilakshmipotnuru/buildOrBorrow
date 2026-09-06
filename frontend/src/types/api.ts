@@ -37,10 +37,10 @@ export interface ProjectedWeek {
 
 export interface ForecastAnalysis {
   projected_timeline: ProjectedWeek[];
-  trend_direction: 'ACCELERATING' | 'STABLE' | 'DECLINING' | 'UNKNOWN';
+  trend_direction: 'ACCELERATING' | 'STABLE' | 'DECLINING' | 'UNAVAILABLE' | 'NOT_APPLICABLE' | 'UNKNOWN';
   health_score: number;
   projected_total_events_90d: number;
-  maintenance_verdict_signal: 'HEALTHY_ACTIVE' | 'SLOW_MAINTENANCE' | 'AT_RISK_STAGNANT' | 'ABANDONED' | string;
+  maintenance_verdict_signal: 'HEALTHY_ACTIVE' | 'SLOW_MAINTENANCE' | 'AT_RISK_STAGNANT' | 'ABANDONED' | 'UNAVAILABLE' | 'IN_HOUSE_BUILD' | string;
 }
 
 export interface RecentGitHubIssue {
@@ -51,7 +51,7 @@ export interface RecentGitHubIssue {
 }
 
 export interface DiagnosisResponse {
-  status: 'MATURE_STABLE' | 'MAINTAINED_ACTIVE' | 'ABANDONED_STRUGGLING' | 'VULNERABLE';
+  status: 'MATURE_STABLE' | 'MAINTAINED_ACTIVE' | 'ABANDONED_STRUGGLING' | 'VULNERABLE' | 'UNCERTAIN_UNVERIFIED';
   is_abandoned: boolean;
   confidence_score: number;
   confidence_reason: string;
@@ -71,7 +71,7 @@ export interface AlternativeVerification {
 }
 
 export interface VerdictResponse {
-  decision: 'BORROW' | 'MIGRATE' | 'BUILD';
+  decision: 'BORROW' | 'MIGRATE' | 'BUILD' | 'UNVERIFIED_CANDIDATES';
   confidence_score: number;
   confidence_level: 'HIGH' | 'MEDIUM' | 'LOW';
   confidence_factors: string[];

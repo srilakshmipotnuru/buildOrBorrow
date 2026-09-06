@@ -9,7 +9,13 @@ import {
   RawDataInspector,
 } from './components';
 import { evaluateDependencyOrTask } from './services/api';
-import type { EvaluationRequest, EvaluationResponse, PackageEvaluationDetail } from './types/api';
+import {
+  getEvaluationFromSession,
+  saveEvaluationToSession,
+  getCandidateEvaluationFromSession,
+  saveCandidateEvaluationToSession,
+} from './services/sessionCache';
+import type { EvaluationRequest, EvaluationResponse } from './types/api';
 import './App.css';
 
 function App() {
@@ -17,7 +23,6 @@ function App() {
   const [evaluatingPackageName, setEvaluatingPackageName] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [result, setResult] = useState<EvaluationResponse | null>(null);
-  const [globalPackageCache, setGlobalPackageCache] = useState<Record<string, PackageEvaluationDetail>>({});
 
   const verdictRef = useRef<HTMLDivElement>(null);
 
@@ -31,16 +36,10 @@ function App() {
     setError(null);
     setEvaluatingPackageName(null);
 
-    const pkgName = (request.package_name || request.user_requirement || "").trim().toLowerCase();
-    const system = (request.system || 'pypi').trim().toLowerCase();
-    const exactSearchKey = `${system}:${pkgName}`;
-
-    // Optimization 1: Instant Global Cache Lookup for Exact Package Searches
-    if (request.package_name && globalPackageCache[exactSearchKey]) {
-      setResult({
-        mode: 'package',
-        evaluation: globalPackageCache[exactSearchKey],
-      });
+    // Exact Match Session Cache Check (Handles Case 1, Case 2, Case 3, Case 4, Case 5)
+    const cachedResponse = getEvaluationFromSession(request);
+    if (cachedResponse) {
+      setResult(cachedResponse);
       setTimeout(() => {
         verdictRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
       }, 50);
@@ -53,15 +52,7 @@ function App() {
     try {
       const data = await evaluateDependencyOrTask(request);
       setResult(data);
-
-      const newEval = data.mode === 'package' ? data.evaluation : data.primary_evaluation;
-      if (newEval) {
-        const key = `${newEval.system.toLowerCase()}:${newEval.package_name.toLowerCase()}`;
-        setGlobalPackageCache((prev) => ({
-          ...prev,
-          [key]: newEval,
-        }));
-      }
+      saveEvaluationToSession(request, data);
     } catch (err: any) {
       setError(err.message || 'An error occurred during evaluation.');
     } finally {
@@ -75,15 +66,15 @@ function App() {
 
     const currentTaskDescription = result.task_description;
     const currentCandidateScreenings = result.candidate_screenings;
-    const cacheKey = `${system.toLowerCase()}:${packageName.toLowerCase()}`;
 
-    // Optimization 2: Instant Global Cache Lookup for Candidate Selection
-    if (globalPackageCache[cacheKey]) {
+    // Exact Task-Scoped Candidate Session Cache Check (Case 4)
+    const cachedCandidateEval = getCandidateEvaluationFromSession(system, packageName, currentTaskDescription);
+    if (cachedCandidateEval) {
       setResult({
         mode: 'task',
         task_description: currentTaskDescription,
         system: system,
-        primary_evaluation: globalPackageCache[cacheKey],
+        primary_evaluation: cachedCandidateEval,
         candidate_screenings: currentCandidateScreenings,
       });
       setTimeout(() => {
@@ -108,11 +99,7 @@ function App() {
       });
 
       const newEval = data.mode === 'package' ? data.evaluation : data.primary_evaluation;
-
-      setGlobalPackageCache((prev) => ({
-        ...prev,
-        [cacheKey]: newEval,
-      }));
+      saveCandidateEvaluationToSession(system, packageName, currentTaskDescription, newEval);
 
       setResult({
         mode: 'task',
@@ -138,9 +125,6 @@ function App() {
       ? result.evaluation
       : result.primary_evaluation
     : null;
-
-  const evaluatedCacheKeys = new Set(Object.keys(globalPackageCache));
-
 
   return (
     <div className="app-container">
@@ -168,7 +152,6 @@ function App() {
                 primaryPackageName={primaryEval.package_name}
                 onEvaluateCandidate={handleEvaluateCandidate}
                 evaluatingPackageName={evaluatingPackageName}
-                evaluatedCacheKeys={evaluatedCacheKeys}
               />
             )}
 
@@ -177,6 +160,7 @@ function App() {
               verdict={primaryEval.verdict}
               packageName={primaryEval.package_name}
               system={primaryEval.system}
+              userRequirement={result.mode === 'task' ? result.task_description : undefined}
             />
 
             {/* Migration Alternative Comparison Card (Rendered when Verdict is MIGRATE) */}
@@ -189,8 +173,10 @@ function App() {
               <CodeViewer builder={primaryEval.builder} packageName={primaryEval.package_name} />
             )}
 
-            {/* Expandable 6-Step Pipeline Accordion & Recharts Forecast Graph */}
-            <PipelineAccordion evaluation={primaryEval} />
+            {/* Expandable 6-Step Pipeline Accordion & Recharts Forecast Graph (Suppressed for Task Mode BUILD micro-utilities) */}
+            {!(result.mode === 'task' && primaryEval.verdict.decision === 'BUILD' && !primaryEval.resolution) && (
+              <PipelineAccordion evaluation={primaryEval} />
+            )}
 
             {/* Raw JSON Data Transparency Inspector */}
             <RawDataInspector data={result} />

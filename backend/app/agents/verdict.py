@@ -18,7 +18,7 @@ class AlternativeVerification(BaseModel):
 
 
 class VerdictResponse(BaseModel):
-    decision: Literal["BORROW", "MIGRATE", "BUILD"] = Field(description="Final decision: BORROW, MIGRATE, or BUILD")
+    decision: Literal["BORROW", "MIGRATE", "BUILD", "UNVERIFIED_CANDIDATES"] = Field(description="Final decision: BORROW, MIGRATE, BUILD, or UNVERIFIED_CANDIDATES")
     confidence_score: float = Field(description="Calculative confidence score between 0.0 and 1.0")
     confidence_level: Literal["HIGH", "MEDIUM", "LOW"] = Field(description="Human-readable confidence rating")
     confidence_factors: List[str] = Field(description="List of evidence factors affecting confidence")
@@ -127,9 +127,9 @@ def generate_verdict(
                 confidence_level="HIGH",
                 confidence_factors=["Single-Function Utility", "Zero Third-Party Dependency Footprint"],
                 reasoning=[
-                    f"Feature requirement for '{pkg_name}' is a trivial micro-utility (under 20 lines of code).",
-                    "Building in-house eliminates external supply-chain dependency bloat.",
-                    "Zero external dependencies ensure maximum performance and codebase security."
+                    f"Target package '{pkg_name}' is healthy/stable, but the requirement is a trivial micro-utility (under ~20 lines of code).",
+                    f"Importing an external library or binary dependency solely for a single-function helper introduces unnecessary dependency bloat.",
+                    f"Building in-house eliminates third-party bloat. Use an inline helper unless your project already relies on '{pkg_name}' for broader workflows."
                 ],
                 recommended_alternative=None,
                 estimated_build_effort="~5-15 lines of code, ~5 mins"
@@ -143,6 +143,14 @@ def generate_verdict(
                 f"Package '{pkg_name}' shows project abandonment and struggling issue resolution.",
                 "Stagnant maintenance signals suggest migrating to an active alternative.",
                 "Adopting an active library prevents technical debt accumulation."
+            ]
+        elif status_val == "UNCERTAIN_UNVERIFIED":
+            dec = "UNVERIFIED_CANDIDATES"
+            rec_alt = None
+            reasoning_bullets = [
+                f"Package '{pkg_name}' repository metadata could not be resolved or verified in the {system} registry.",
+                "Telemetry and source repository activity are unavailable for health scoring.",
+                "Please verify registry connection or evaluate by exact package name."
             ]
         elif health_score >= 50 or status_val in ["MATURE_STABLE", "MAINTAINED_ACTIVE"]:
             dec = "BORROW"
@@ -190,9 +198,19 @@ def generate_verdict(
 
         client = genai.Client(api_key=api_key)
 
+        github_url = package_resolution.get("github_url", "N/A")
+        project_name = package_resolution.get("project_name", pkg_name)
+        stargazers = package_resolution.get("stargazers_count", 0)
+        dependents = package_resolution.get("dependents_count", 0)
+
         prompt = (
             f"You are the Senior Software Architecture Verdict Agent for BuildOrBorrow.\n"
-            f"Target Package: '{pkg_name}' (Ecosystem: '{system}')\n"
+            f"TARGET REPOSITORY GROUNDING:\n"
+            f"- Ecosystem Registry: '{system}'\n"
+            f"- Package Name: '{pkg_name}'\n"
+            f"- Resolved Repository: {github_url} ({project_name})\n"
+            f"- Repository Stars: {stargazers}\n"
+            f"- Downstream Dependent Projects: {dependents}\n"
             f"User Feature Requirement: '{user_requirement or 'General usage'}'\n\n"
             f"EVIDENCE SUMMARY:\n"
             f"- Diagnosis Status: {diag_status}\n"
@@ -207,14 +225,21 @@ def generate_verdict(
             f"1. HISTORICAL PATCHED CVES VS ACTIVE CVES (BORROW / MIGRATE):\n"
             f"   - Historical patched CVEs (active_cves_on_current_version == 0) represent active security stewardship, NOT a reason to abandon a library! If current release has 0 active CVEs, permit BORROW.\n"
             f"   - Only trigger MIGRATE for security reasons if active_cves_on_current_version > 0 (an unpatched vulnerability remains open on the current release).\n"
-            f"2. DYNAMIC MICRO-UTILITY CLASSIFICATION (BUILD):\n"
-            f"   - Dynamically analyze if '{pkg_name}' or the feature requirement is a trivial micro-utility (under ~25 lines of code, single-function helper like string padding, clamping, null checks, string repetition, slugification, case conversion, or array flattening) across ANY ecosystem.\n"
-            f"   - If it is a micro-utility, set decision to BUILD and set estimated_build_effort (e.g. '~5-15 lines of code, ~5 mins'). Building in-house eliminates external supply-chain dependency bloat.\n"
+            f"2. DYNAMIC MICRO-UTILITY & TRIVIAL TASK CLASSIFICATION (BUILD):\n"
+            f"   - Dynamically analyze if:\n"
+            f"     a) '{pkg_name}' itself is a single-function micro-utility library (e.g. left-pad, is-even, pad-left, clamp, is-number), OR\n"
+            f"     b) The user feature requirement is a trivial task (under ~25 lines of code, single-function helper like clamping a float, string padding, null check, string repetition, slugification, case conversion, or array flattening).\n"
+            f"   - If either condition is met, set decision to BUILD and set estimated_build_effort (e.g. '~5-15 lines of code, ~5 mins').\n"
+            f"   - When a heavy foundation library (e.g. numpy, lodash, pandas) is requested for a trivial task (e.g. clamping a float):\n"
+            f"     * Bullet 1: Acknowledge that the target library ('{pkg_name}') is a mature, healthy, industry-standard library with 0 active CVEs.\n"
+            f"     * Bullet 2: Explain that importing a heavy binary/library dependency solely for a 2-line scalar helper introduces unnecessary dependency bloat and slower startup times.\n"
+            f"     * Bullet 3: Explicitly advise: 'Build a 2-line inline min(max(...)) helper in-house, unless your application already depends on {pkg_name} for broader scientific/matrix workflows.'\n"
             f"3. DYNAMIC DEPRECATED / SUPERSEDED / RENAMED CLASSIFICATION (MIGRATE):\n"
             f"   - Dynamically evaluate if '{pkg_name}' is officially deprecated, unmaintained, legacy, or superseded by a modern alternative library across ANY ecosystem (e.g. passlib -> argon2-cffi, pep8 -> pycodestyle, node-uuid -> uuid, requests-async -> httpx, mysql-python -> mysqlclient, rustc-serialize -> serde, pycrypto -> pycryptodome, moment -> dayjs, bower -> npm, request -> axios).\n"
             f"   - If deprecated or superseded, set decision to MIGRATE and specify the modern active replacement package in recommended_alternative.\n"
             f"4. MATURE BEDROCK OVERRIDE (BORROW):\n"
-            f"   - If '{pkg_name}' is a mature, foundational industry-standard package (e.g. requests, urllib3, cryptography, sqlalchemy, tokio, serde, clsx, lodash, uvicorn, pandas, numpy, express, gin, jackson-databind) with zero active CVEs on current release, low recent commit velocity reflects API STABILITY & COMPLETENESS ('BORROW'), NOT project abandonment.\n"
+            f"   - A package can ONLY qualify for Mature Bedrock Override if the target repository '{project_name}' on system '{system}' has verified high adoption AND the requested feature requirement represents broad non-trivial usage of the library.\n"
+            f"   - DO NOT trigger Bedrock Override if the requested task is a trivial micro-utility (e.g. scalar float clamp) that can be written in 2 lines without the library.\n"
             f"5. DEFAULT BORROW:\n"
             f"   - Recommend BORROW if the package is mature, active, or stable and the feature requirement is non-trivial.\n\n"
             f"OUTPUT REQUIREMENTS:\n"

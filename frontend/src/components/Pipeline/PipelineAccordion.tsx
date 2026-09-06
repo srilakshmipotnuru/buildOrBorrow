@@ -40,9 +40,16 @@ export const PipelineAccordion: React.FC<PipelineAccordionProps> = ({ evaluation
   };
 
   const { resolution, security, forecast, recent_issues, diagnosis, verdict, builder } = evaluation;
+  const isFastPath = forecast?.trend_direction === 'NOT_APPLICABLE' || verdict?.confidence_factors?.some((f) => f.includes('Bypassed BigQuery'));
 
   return (
     <div className="pipeline-accordion-card">
+      {isFastPath && (
+        <div className="fastpath-accordion-banner">
+          ⚡ <strong>Fast-Path Execution Active:</strong> BigQuery warehouse scans and ML forecasting were bypassed for this single-function micro-utility requirement (&lt; 25 LOC). Zero external third-party dependencies were queried or required.
+        </div>
+      )}
+
       {/* Accordion Master Bar */}
       <div className="accordion-master-bar">
         <h3>
