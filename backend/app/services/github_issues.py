@@ -187,11 +187,13 @@ def fetch_github_repo_metadata(owner: str, repo: str) -> Dict[str, Any]:
             is_archived = data.get("archived", False)
             stars = data.get("stargazers_count", 0)
             forks = data.get("forks_count", 0)
-            logger.info(f"   [GitHub Repo Metadata] Retrieved metadata for '{full_repo}' (Archived: {is_archived}, Stars: {stars}, Forks: {forks})")
+            canonical_name = data.get("full_name") or full_repo
+            logger.info(f"   [GitHub Repo Metadata] Retrieved metadata for '{full_repo}' (Canonical: {canonical_name}, Archived: {is_archived}, Stars: {stars}, Forks: {forks})")
             return {
                 "is_archived": is_archived,
                 "stargazers_count": stars,
                 "forks_count": forks,
+                "canonical_full_name": canonical_name,
                 "default_branch": data.get("default_branch", "main"),
                 "description": data.get("description", "")
             }
@@ -200,6 +202,6 @@ def fetch_github_repo_metadata(owner: str, repo: str) -> Dict[str, Any]:
     except Exception as e:
         logger.warning(f"GitHub Repo metadata request failed for {full_repo}: {e}")
 
-    return {"is_archived": False, "stargazers_count": 0, "forks_count": 0}
+    return {"is_archived": False, "stargazers_count": 0, "forks_count": 0, "canonical_full_name": full_repo}
 
 

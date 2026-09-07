@@ -176,7 +176,21 @@ def evaluate_single_package_pipeline(
                 if repo_meta.get("is_archived"):
                     readme_context["is_archived"] = True
                     logger.warning(f"   ⚠️ GitHub Platform Notice: Repository {owner}/{repo} is officially ARCHIVED (read-only mode).")
-                logger.info(f"   ✔ GitHub Issues    : Fetched {len(recent_issues)} recent open issues for {owner}/{repo}")
+                
+                # Pass live stars and forks to resolution dictionary for Diagnosis & Verdict agents
+                resolution_dict["stargazers_count"] = repo_meta.get("stargazers_count", 0)
+                resolution_dict["forks_count"] = repo_meta.get("forks_count", 0)
+
+                # Follow GitHub organization transfers and renames (e.g. tiangolo/fastapi -> fastapi/fastapi, vriad/zod -> colinhacks/zod)
+                canonical_name = repo_meta.get("canonical_full_name")
+                if canonical_name and "/" in canonical_name and canonical_name.lower() != f"{owner}/{repo}".lower():
+                    new_owner, new_repo = canonical_name.split("/", 1)
+                    logger.info(f"   🔄 [GitHub Canonical Redirect] Updating repo target from '{owner}/{repo}' to '{new_owner}/{new_repo}'")
+                    owner, repo = new_owner.strip(), new_repo.strip()
+                    resolution_dict["project_name"] = canonical_name
+                    resolution_dict["github_url"] = f"https://github.com/{canonical_name}"
+
+                logger.info(f"   ✔ GitHub Issues    : Fetched {len(recent_issues)} recent open issues for {owner}/{repo} (Stars: {resolution_dict['stargazers_count']})")
                 if readme_context.get("is_deprecated_in_readme"):
                     logger.warning(f"   ⚠️ GitHub README Warning: Deprecation/renaming keywords detected in README for {owner}/{repo}")
             except Exception as e:

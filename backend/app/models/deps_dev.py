@@ -10,6 +10,9 @@ class PackageResolutionResponse(BaseModel):
     licenses: List[str] = []
     github_url: Optional[str] = None
     published_at: Optional[str] = None
+    stargazers_count: int = 0
+    forks_count: int = 0
+    dependents_count: int = 0
 
 
 class SecurityContextResponse(BaseModel):

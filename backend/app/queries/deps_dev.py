@@ -176,6 +176,13 @@ def query_package_resolution(
         WHERE System = @system 
           AND Name = @package_name
           AND SnapshotAt >= TIMESTAMP_SUB(CURRENT_TIMESTAMP(), INTERVAL {settings.DEPS_DEV_PARTITION_DAYS} DAY)
+        ORDER BY 
+          -- 1. Prefer official GITHUB project type
+          CASE WHEN UPPER(ProjectType) = 'GITHUB' THEN 0 ELSE 1 END ASC,
+          -- 2. Avoid auxiliary build/release repos (e.g. 'numpy/numpy-release')
+          CASE WHEN LOWER(ProjectName) LIKE '%-release' THEN 1 ELSE 0 END ASC,
+          -- 3. Latest snapshot recency
+          SnapshotAt DESC
         LIMIT 1
     )
     SELECT 
@@ -212,7 +219,10 @@ def query_package_resolution(
                 "project_name": row.ProjectName,
                 "licenses": list(row.Licenses) if row.Licenses else [],
                 "github_url": f"https://github.com/{row.ProjectName}" if row.ProjectName else None,
-                "published_at": row.published_at
+                "published_at": row.published_at,
+                "stargazers_count": 0,
+                "forks_count": 0,
+                "dependents_count": 0
             }
         logger.warning(f"   [deps.dev] No release resolution record found for '{package_name}' in {target_system}")
         return None
