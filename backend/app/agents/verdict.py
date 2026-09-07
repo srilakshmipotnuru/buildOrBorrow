@@ -139,7 +139,7 @@ def generate_verdict(
             f"   - Evaluate whether '{pkg_name}' is a single-function micro-utility or the requested requirement is a trivial task (< 25 lines of code, e.g. scalar clamp, string padding, null check).\n"
             f"   - If so, recommend BUILD with an estimated_build_effort. Acknowledge the library's stability if it is a major package (e.g. numpy, lodash), but recommend building an inline helper to avoid unnecessary binary/dependency bloat unless the project already uses the library broadly.\n"
             f"3. DEPRECATION & SUPERSEDED PACKAGES (MIGRATE):\n"
-            f"   - If '{pkg_name}' is deprecated, unmaintained, or superseded by modern industry standards (e.g. passlib -> argon2-cffi, pep8 -> pycodestyle, moment -> dayjs, request -> axios), recommend MIGRATE and specify the modern alternative in recommended_alternative.\n"
+            f"   - If '{pkg_name}' is deprecated, unmaintained, or superseded by modern industry standards (e.g. passlib -> argon2-cffi, pep8 -> pycodestyle, moment -> dayjs, request -> axios, pycrypto -> pycryptodome), recommend MIGRATE and specify the EXACT published registry package name in recommended_alternative (e.g. 'argon2-cffi' rather than 'argon2', 'pycryptodome' rather than 'pycrypto', 'python-dateutil' rather than 'dateutil', 'dayjs' rather than 'moment').\n"
             f"4. DOMAIN RELEVANCE & ANTI-OVERKILL:\n"
             f"   - If '{pkg_name}' is completely mismatched to the requested requirement (e.g. video rendering engine for web caching), do not recommend BORROW. Recommend BUILD with standard library primitives or specify a domain-appropriate library in recommended_alternative.\n"
             f"5. GENERAL STABILITY (BORROW):\n"
@@ -163,11 +163,16 @@ def generate_verdict(
         if response.parsed and isinstance(response.parsed, VerdictResponse):
             verdict = response.parsed
             is_archived_flag = "ARCHIVED" in diagnosis_output.get("confidence_reason", "").upper() or "ARCHIVED" in diagnosis_output.get("explanation", "").upper() or bool(diagnosis_output.get("is_archived"))
+            
+            # Dynamic Qualitative Delta from Gemini (bounded between -0.15 and 0.0)
+            raw_llm_score = verdict.confidence_score if verdict.confidence_score is not None else 1.0
+            llm_delta = max(-0.15, min(0.0, raw_llm_score - 1.0))
+
             conf_score, conf_level, conf_factors = calculate_formulaic_confidence(
                 has_history=bool(forecast_analysis),
                 has_issues=True,
                 has_security=bool(security_context),
-                llm_delta=0.0,
+                llm_delta=llm_delta,
                 is_archived=is_archived_flag
             )
             verdict.confidence_score = conf_score

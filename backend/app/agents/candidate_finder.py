@@ -42,14 +42,12 @@ def find_candidate_packages(task_description: str, system: str = "PYPI") -> Cand
         client = genai.Client(api_key=api_key)
 
         prompt = (
-            f"You are an expert software package ecosystem architect.\n"
+            f"You are an expert software package ecosystem architect and exact registry name resolver.\n"
             f"Task Requirement: '{task_description}'\n"
             f"Target Ecosystem: '{target_system}'\n\n"
             f"Instructions:\n"
-            f"1. Identify EXACTLY {settings.CANDIDATE_FINDER_COUNT} popular, modern, well-maintained candidate packages in the '{target_system}' ecosystem "
-            f"that solve this task.\n"
-            f"2. For each package, return its exact package name as published in the '{target_system}' registry, "
-            f"its system string ('{target_system}'), and a brief 1-sentence reason.\n"
+            f"1. Identify EXACTLY {settings.CANDIDATE_FINDER_COUNT} popular, modern, well-maintained candidate packages in the '{target_system}' ecosystem that solve this task.\n"
+            f"2. For each package, return its EXACT published package name as registered on '{target_system}' (e.g., output 'python-dateutil' rather than 'dateutil', 'argon2-cffi' rather than 'argon2', 'pillow' rather than 'PIL', 'org.springframework.boot:spring-boot' rather than 'springboot', 'github.com/gin-gonic/gin' rather than 'gin').\n"
             f"3. Assign a confidence_score between 0.0 and 1.0 for your candidate selection."
         )
 
