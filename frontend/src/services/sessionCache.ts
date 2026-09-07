@@ -7,24 +7,21 @@ interface CacheStore {
   candidates: Record<string, PackageEvaluationDetail>;
 }
 
+let memoryStore: CacheStore = { evaluations: {}, candidates: {} };
+
+// Clear any previous sessionStorage entries on page reload/refresh
+try {
+  sessionStorage.removeItem(SESSION_STORAGE_KEY);
+} catch (e) {
+  // ignore
+}
+
 function getStore(): CacheStore {
-  try {
-    const raw = sessionStorage.getItem(SESSION_STORAGE_KEY);
-    if (raw) {
-      return JSON.parse(raw) as CacheStore;
-    }
-  } catch (e) {
-    console.warn('Failed to read from sessionStorage:', e);
-  }
-  return { evaluations: {}, candidates: {} };
+  return memoryStore;
 }
 
 function saveStore(store: CacheStore): void {
-  try {
-    sessionStorage.setItem(SESSION_STORAGE_KEY, JSON.stringify(store));
-  } catch (e) {
-    console.warn('Failed to write to sessionStorage:', e);
-  }
+  memoryStore = store;
 }
 
 /**
