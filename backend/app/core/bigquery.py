@@ -42,9 +42,9 @@ def execute_safe_query(
             real_config.maximum_bytes_billed = max_bytes
         logger.debug(f"BigQuery Byte Limit ENABLED: Enforcing {target_max_mb:.2f} MB cap.")
     else:
-        # Production Deployment Mode: Disable byte limit restrictions
-        real_config.maximum_bytes_billed = None
+        # Production Deployment Mode: Leave maximum_bytes_billed unset (unrestricted)
         logger.debug("BigQuery Byte Limit DISABLED: Running query without maximum_bytes_billed restriction.")
+
 
     try:
         query_job = client.query(sql, job_config=real_config)
