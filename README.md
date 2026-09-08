@@ -425,6 +425,10 @@ BuildOrBorrow utilizes Google BigQuery for longitudinal data storage and ML fore
 ### 3. BigQuery ML `ARIMA_PLUS` Forecasting
 Time-series models project activity 13 weeks (~90 days) into the future. High-performance zero-scan inline parameter array passing (`UNNEST(@history)`) eliminates multi-gigabyte scans during model fitting.
 
+- **Master Evaluation CSV:** [`backend/benchmark/results/build_or_borrow_evaluations.csv`](backend/benchmark/results/build_or_borrow_evaluations.csv) (Contains all 118 evaluated test cases across 5 benchmark suites)
+- **Looker / Data Studio PDF Report:** [`backend/benchmark/results/evaluations_report.pdf`](backend/benchmark/results/evaluations_report.pdf)
+- **Benchmark Insights Report:** [`backend/benchmark/results/BENCHMARK_INSIGHTS.md`](backend/benchmark/results/BENCHMARK_INSIGHTS.md)
+
 For full DDL queries, SQL aggregation scripts, and collaborator IAM setup guides, see [`docs/bigquery_warehouse.md`](docs/bigquery_warehouse.md).
 
 ---
