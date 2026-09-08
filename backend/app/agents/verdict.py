@@ -18,7 +18,7 @@ class AlternativeVerification(BaseModel):
 
 
 class VerdictResponse(BaseModel):
-    decision: Literal["BORROW", "MIGRATE", "BUILD", "UNVERIFIED_CANDIDATES"] = Field(description="Final decision: BORROW, MIGRATE, BUILD, or UNVERIFIED_CANDIDATES")
+    decision: Literal["BORROW", "MIGRATE", "BUILD"] = Field(description="Final decision: BORROW, MIGRATE, or BUILD")
     confidence_score: float = Field(description="Calculative confidence score between 0.0 and 1.0")
     confidence_level: Literal["HIGH", "MEDIUM", "LOW"] = Field(description="Human-readable confidence rating")
     confidence_factors: List[str] = Field(description="List of evidence factors affecting confidence")
@@ -141,7 +141,7 @@ def generate_verdict(
             f"5. GENERAL STABILITY (BORROW):\n"
             f"   - If the package is healthy, stable, active, domain-relevant, and the requirement represents non-trivial software functionality, recommend BORROW.\n\n"
             f"OUTPUT REQUIREMENTS:\n"
-            f"- Set decision to BORROW, MIGRATE, BUILD, or UNVERIFIED_CANDIDATES.\n"
+            f"- Set decision to BORROW, MIGRATE, or BUILD.\n"
             f"- Set confidence_score (0.0 to 1.0) and confidence_level (HIGH, MEDIUM, or LOW).\n"
             f"- Provide concise, authoritative reasoning bullet points.\n"
             f"- If BUILD, provide estimated_build_effort (e.g. '15 lines of code, ~10 mins').\n"
