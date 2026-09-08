@@ -391,3 +391,317 @@
   margin: 0;
   font-style: italic;
 }
+
+/* ==========================================================================
+   Active vs Historical CVE Scoping & Metric Cards
+   ========================================================================== */
+
+.cve-status-banner {
+  display: flex;
+  align-items: flex-start;
+  gap: 1rem;
+  padding: 1rem 1.25rem;
+  border-radius: 12px;
+  margin-bottom: 1.25rem;
+}
+
+.cve-status-banner.clean {
+  background: linear-gradient(135deg, var(--success-bg) 0%, rgba(255, 255, 255, 0.9) 100%);
+  border: 1px solid var(--success-border);
+}
+
+.cve-status-banner.vulnerable {
+  background: linear-gradient(135deg, var(--secondary-50) 0%, rgba(255, 255, 255, 0.9) 100%);
+  border: 1px solid var(--secondary-300);
+}
+
+.banner-icon-badge {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 36px;
+  height: 36px;
+  border-radius: 10px;
+  flex-shrink: 0;
+}
+
+.clean-icon {
+  background: rgba(16, 185, 129, 0.15);
+  color: var(--success-icon);
+}
+
+.vulnerable-icon {
+  background: var(--secondary-100);
+  color: var(--secondary-600);
+}
+
+.banner-text h4 {
+  margin: 0 0 0.3rem 0;
+  font-size: 0.975rem;
+  font-weight: 700;
+  color: var(--text-950);
+}
+
+.banner-text p {
+  margin: 0;
+  font-size: 0.875rem;
+  line-height: 1.45;
+  color: var(--text-700);
+}
+
+.safe-pin-highlight {
+  color: var(--success-text);
+  font-family: var(--mono);
+  font-weight: 700;
+}
+
+/* 3-Column Scoped Metrics */
+.cve-metric-cards-row {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  gap: 0.85rem;
+  margin-bottom: 1.25rem;
+}
+
+.cve-metric-card {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  padding: 1rem 0.75rem;
+  border-radius: 10px;
+  background: var(--background-50);
+  border: 1px solid var(--background-200);
+}
+
+.cve-metric-card.clean {
+  border-color: var(--success-border);
+  background: var(--success-bg);
+}
+
+.cve-metric-card.clean .metric-number {
+  color: var(--success-text);
+}
+
+.cve-metric-card.alert {
+  border-color: var(--secondary-200);
+  background: var(--secondary-50);
+}
+
+.cve-metric-card.alert .metric-number {
+  color: var(--secondary-700);
+}
+
+.cve-metric-card.neutral .metric-number {
+  color: var(--primary-600);
+}
+
+.metric-number {
+  font-size: 1.6rem;
+  font-weight: 800;
+  line-height: 1.1;
+  margin-bottom: 0.35rem;
+  font-family: var(--mono);
+}
+
+.metric-label {
+  font-size: 0.775rem;
+  font-weight: 600;
+  color: var(--text-600);
+  text-transform: uppercase;
+  letter-spacing: 0.025em;
+}
+
+.section-subtitle {
+  display: block;
+  font-size: 0.8rem;
+  font-weight: 700;
+  color: var(--text-600);
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+  margin-bottom: 0.5rem;
+}
+
+/* Affected Version Ranges */
+.affected-ranges-container {
+  margin-top: 1.25rem;
+  padding-top: 1.15rem;
+  border-top: 1px dashed var(--background-300);
+}
+
+.affected-ranges-title-row {
+  margin-bottom: 0.75rem;
+}
+
+.affected-ranges-title-row .section-subtitle {
+  margin-bottom: 0.2rem;
+}
+
+.section-subtext {
+  font-size: 0.8rem;
+  color: var(--text-500);
+  display: block;
+}
+
+.ranges-pills-wrap {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.65rem;
+}
+
+.range-pill-card {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  background: var(--surface);
+  border: 1px solid var(--background-200);
+  padding: 0.35rem 0.65rem;
+  border-radius: 8px;
+  font-size: 0.825rem;
+  transition: all 0.15s ease;
+}
+
+.range-pill-card:hover {
+  border-color: var(--background-300);
+  background: var(--background-50);
+}
+
+.range-vuln-part {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  color: var(--text-800);
+}
+
+.range-vuln-label {
+  font-size: 0.75rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  color: var(--secondary-700);
+  letter-spacing: 0.02em;
+}
+
+.range-vuln-part code {
+  font-family: var(--mono);
+  font-weight: 700;
+  color: var(--secondary-800);
+  background: var(--secondary-50);
+  border: 1px solid var(--secondary-200);
+  padding: 0.1rem 0.35rem;
+  border-radius: 4px;
+}
+
+.range-fixed-part {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+  padding-left: 0.45rem;
+  border-left: 1px solid var(--background-200);
+  color: var(--success-text);
+  font-family: var(--mono);
+  font-size: 0.775rem;
+  font-weight: 600;
+}
+
+.range-icon {
+  width: 12px;
+  height: 12px;
+  color: var(--secondary-500);
+}
+
+.fixed-icon {
+  width: 13px;
+  height: 13px;
+  color: var(--success-icon);
+}
+
+/* ==========================================================================
+   Diagnosis Step 4 Enhancements
+   ========================================================================== */
+
+.diag-reconciliation-card {
+  background: linear-gradient(135deg, var(--accent-50) 0%, rgba(255, 255, 255, 0.9) 100%);
+  border: 1px solid var(--accent-200);
+  border-radius: 10px;
+  padding: 0.85rem 1rem;
+}
+
+.reconciliation-header {
+  display: flex;
+  align-items: center;
+  gap: 0.45rem;
+  font-size: 0.875rem;
+  color: var(--accent-800);
+  margin-bottom: 0.35rem;
+}
+
+.recon-icon {
+  width: 16px;
+  height: 16px;
+  color: var(--accent-600);
+}
+
+.diag-reconciliation-card p {
+  margin: 0;
+  font-size: 0.85rem;
+  line-height: 1.45;
+  color: var(--text-800);
+}
+
+.signal-badge.stagnant {
+  display: inline-block;
+  padding: 0.1rem 0.4rem;
+  border-radius: 4px;
+  background: var(--accent-100);
+  border: 1px solid var(--accent-200);
+  color: var(--accent-900);
+  font-family: var(--mono);
+  font-size: 0.775rem;
+  font-weight: 700;
+}
+
+.diag-confidence-reason-card {
+  background: linear-gradient(135deg, var(--primary-50) 0%, rgba(255, 255, 255, 0.9) 100%);
+  border: 1px solid var(--primary-200);
+  border-radius: 10px;
+  padding: 0.85rem 1rem;
+}
+
+.confidence-reason-header {
+  display: flex;
+  align-items: center;
+  gap: 0.45rem;
+  font-size: 0.875rem;
+  color: var(--primary-700);
+  margin-bottom: 0.35rem;
+}
+
+.reason-icon {
+  width: 16px;
+  height: 16px;
+  color: var(--primary-500);
+}
+
+.confidence-reason-text {
+  margin: 0;
+  font-size: 0.875rem;
+  line-height: 1.5;
+  color: var(--text-800);
+  font-style: italic;
+}
+
+.bug-assessment-header {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  margin-bottom: 0.35rem;
+  color: var(--text-900);
+  font-size: 0.9rem;
+}
+
+.bug-icon {
+  width: 16px;
+  height: 16px;
+  color: var(--secondary-500);
+}
+

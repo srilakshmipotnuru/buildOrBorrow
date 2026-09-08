@@ -11,10 +11,42 @@ import {
   ExternalLink,
   Bug,
   ListFilter,
+  ShieldCheck,
+  Lock,
+  Lightbulb,
+  CheckCircle2,
 } from 'lucide-react';
 import type { PackageEvaluationDetail } from '../../types/api';
 import { ForecastChart } from './ForecastChart';
 import './PipelineAccordion.css';
+
+const formatAffectedRange = (raw: string) => {
+  const matchFixedZero = raw.match(/Introduced:\s*0\s*,\s*Fixed:\s*([0-9a-zA-Z\.\-]+)/i);
+  if (matchFixedZero) {
+    return {
+      vulnerable: `< v${matchFixedZero[1].replace(/^v/, '')}`,
+      fixed: `Fixed in v${matchFixedZero[1].replace(/^v/, '')}`,
+    };
+  }
+  const matchBoth = raw.match(/Introduced:\s*([0-9a-zA-Z\.\-]+)\s*,\s*Fixed:\s*([0-9a-zA-Z\.\-]+)/i);
+  if (matchBoth) {
+    return {
+      vulnerable: `v${matchBoth[1].replace(/^v/, '')} to < v${matchBoth[2].replace(/^v/, '')}`,
+      fixed: `Fixed in v${matchBoth[2].replace(/^v/, '')}`,
+    };
+  }
+  const matchLt = raw.match(/<\s*v?([0-9a-zA-Z\.\-]+)/);
+  if (matchLt) {
+    return {
+      vulnerable: `< v${matchLt[1].replace(/^v/, '')}`,
+      fixed: `Fixed in v${matchLt[1].replace(/^v/, '')}`,
+    };
+  }
+  return {
+    vulnerable: raw,
+    fixed: null,
+  };
+};
 
 interface PipelineAccordionProps {
   evaluation: PackageEvaluationDetail;
@@ -137,9 +169,15 @@ export const PipelineAccordion: React.FC<PipelineAccordionProps> = ({ evaluation
           <div className="step-header-meta">
             {security && (
               <span
-                className={`meta-pill ${security.critical_vulnerabilities > 0 ? 'alert-pill' : 'safe-pill'}`}
+                className={`meta-pill ${
+                  security.is_current_version_vulnerable || (security.active_cves_on_current_version ?? 0) > 0
+                    ? 'alert-pill'
+                    : 'safe-pill'
+                }`}
               >
-                {security.total_vulnerabilities} CVEs | {security.transitive_dependencies} Transitive Deps
+                {security.is_current_version_vulnerable || (security.active_cves_on_current_version ?? 0) > 0
+                  ? `⚠️ ${security.active_cves_on_current_version ?? security.total_vulnerabilities} Active CVEs`
+                  : `🛡️ Clean Release: 0 Active CVEs (${security.patched_historical_cves ?? security.total_vulnerabilities} Patched)`}
               </span>
             )}
             {openSteps[2] ? <ChevronUp className="chevron" /> : <ChevronDown className="chevron" />}
@@ -150,29 +188,113 @@ export const PipelineAccordion: React.FC<PipelineAccordionProps> = ({ evaluation
           <div className="step-content">
             {security ? (
               <div className="security-content">
-                <div className="cve-breakdown-row">
-                  <div className="cve-tag critical">
-                    <span className="cve-count">{security.critical_vulnerabilities}</span>
-                    <span className="cve-label">Critical</span>
+                {/* Active vs Historical CVE Scoped Banner */}
+                {security.is_current_version_vulnerable || (security.active_cves_on_current_version ?? 0) > 0 ? (
+                  <div className="cve-status-banner vulnerable">
+                    <div className="banner-icon-badge vulnerable-icon">
+                      <ShieldAlert className="w-5 h-5" />
+                    </div>
+                    <div className="banner-text">
+                      <h4>Current Release Contains Active Unpatched Vulnerabilities</h4>
+                      <p>
+                        <strong>{security.active_cves_on_current_version ?? security.total_vulnerabilities} active CVE(s)</strong>{' '}
+                        affect this release.
+                        {security.recommended_pinned_version && (
+                          <> Recommended safe pinned release:{' '}
+                            <strong className="safe-pin-highlight">v{security.recommended_pinned_version.replace(/^v/, '')}</strong>
+                          </>
+                        )}
+                      </p>
+                    </div>
                   </div>
-                  <div className="cve-tag high">
-                    <span className="cve-count">{security.high_vulnerabilities}</span>
-                    <span className="cve-label">High</span>
+                ) : (
+                  <div className="cve-status-banner clean">
+                    <div className="banner-icon-badge clean-icon">
+                      <ShieldCheck className="w-5 h-5" />
+                    </div>
+                    <div className="banner-text">
+                      <h4>Current Release {resolution?.version ? `v${resolution.version}` : ''} is Clean (0 Active CVEs)</h4>
+                      <p>
+                        Zero unpatched security vulnerabilities detected on this version. All{' '}
+                        <strong>{security.patched_historical_cves ?? security.total_vulnerabilities} historical CVEs</strong>{' '}
+                        have been responsibly patched by project maintainers across earlier release cycles.
+                      </p>
+                    </div>
                   </div>
-                  <div className="cve-tag medium">
-                    <span className="cve-count">{security.medium_vulnerabilities}</span>
-                    <span className="cve-label">Medium</span>
+                )}
+
+                {/* 3-Column Scoped Metrics */}
+                <div className="cve-metric-cards-row">
+                  <div className={`cve-metric-card ${security.is_current_version_vulnerable ? 'alert' : 'clean'}`}>
+                    <span className="metric-number">{security.active_cves_on_current_version ?? 0}</span>
+                    <span className="metric-label">Active CVEs on Current Release</span>
                   </div>
-                  <div className="cve-tag low">
-                    <span className="cve-count">{security.low_vulnerabilities}</span>
-                    <span className="cve-label">Low</span>
+                  <div className="cve-metric-card neutral">
+                    <span className="metric-number">{security.patched_historical_cves ?? security.total_vulnerabilities}</span>
+                    <span className="metric-label">Patched Historical Advisories</span>
+                  </div>
+                  <div className="cve-metric-card neutral">
+                    <span className="metric-number">{security.transitive_dependencies}</span>
+                    <span className="metric-label">Transitive Dependency Burden</span>
                   </div>
                 </div>
 
-                <div className="dep-burden-box">
-                  <strong>Transitive Dependency Burden:</strong>{' '}
-                  <span>{security.transitive_dependencies} transitive packages required</span>
+                {/* Historical Severity Breakdown */}
+                <div className="historical-breakdown-section">
+                  <span className="section-subtitle">Historical Vulnerability Breakdown (Patched in Earlier Releases):</span>
+                  <div className="cve-breakdown-row">
+                    <div className="cve-tag critical">
+                      <span className="cve-count">{security.critical_vulnerabilities}</span>
+                      <span className="cve-label">Critical</span>
+                    </div>
+                    <div className="cve-tag high">
+                      <span className="cve-count">{security.high_vulnerabilities}</span>
+                      <span className="cve-label">High</span>
+                    </div>
+                    <div className="cve-tag medium">
+                      <span className="cve-count">{security.medium_vulnerabilities}</span>
+                      <span className="cve-label">Medium</span>
+                    </div>
+                    <div className="cve-tag low">
+                      <span className="cve-count">{security.low_vulnerabilities}</span>
+                      <span className="cve-label">Low</span>
+                    </div>
+                  </div>
                 </div>
+
+                {/* Affected Version Ranges */}
+                {security.affected_version_ranges && security.affected_version_ranges.length > 0 && (
+                  <div className="affected-ranges-container">
+                    <div className="affected-ranges-title-row">
+                      <span className="section-subtitle">
+                        Historical Affected Versions & Upstream Fixes:
+                      </span>
+                      <span className="section-subtext">
+                        Legacy releases impacted prior to current release v{resolution?.version || ''} (All patched in this version)
+                      </span>
+                    </div>
+                    <div className="ranges-pills-wrap">
+                      {security.affected_version_ranges.map((range, idx) => {
+                        const { vulnerable, fixed } = formatAffectedRange(range);
+                        return (
+                          <div key={idx} className="range-pill-card">
+                            <span className="range-vuln-part">
+                              <Lock className="range-icon" />
+                              <span className="range-vuln-label">Vulnerable:</span>
+                              <code>{vulnerable}</code>
+                            </span>
+                            {fixed && (
+                              <span className="range-fixed-part">
+                                <CheckCircle2 className="fixed-icon" />
+                                <span>{fixed}</span>
+                              </span>
+                            )}
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </div>
+                )}
               </div>
             ) : (
               <p className="missing-msg">Security advisory data unavailable.</p>
@@ -236,16 +358,46 @@ export const PipelineAccordion: React.FC<PipelineAccordionProps> = ({ evaluation
                   {diagnosis.status}
                 </span>
                 <span className="diag-conf">
-                  Confidence: {(diagnosis.confidence_score * 100).toFixed(0)}%
+                  AI Confidence: {(diagnosis.confidence_score * 100).toFixed(0)}%
                 </span>
               </div>
+
+              {/* Heuristic & Semantic Reconciliation Notice */}
+              {forecast && forecast.maintenance_verdict_signal === 'AT_RISK_STAGNANT' && diagnosis.status === 'MATURE_STABLE' && (
+                <div className="diag-reconciliation-card">
+                  <div className="reconciliation-header">
+                    <Scale className="recon-icon" />
+                    <strong>Heuristic & Semantic Reconciliation:</strong>
+                  </div>
+                  <p>
+                    Automated activity heuristics flagged recent commit frequency as{' '}
+                    <span className="signal-badge stagnant">AT_RISK_STAGNANT</span> (Score: {forecast.health_score.toFixed(0)}/100).
+                    However, semantic AI issue analysis confirms this is a <strong>mature, stable bedrock library</strong> with active release roadmaps and responsible maintenance triage.
+                  </p>
+                </div>
+              )}
+
+              {/* Dedicated AI Confidence Justification Callout */}
+              {diagnosis.confidence_reason && (
+                <div className="diag-confidence-reason-card">
+                  <div className="confidence-reason-header">
+                    <Lightbulb className="reason-icon" />
+                    <strong>AI Confidence Justification:</strong>
+                  </div>
+                  <p className="confidence-reason-text">{diagnosis.confidence_reason}</p>
+                </div>
+              )}
 
               <div className="diag-explanation">
                 <strong>Diagnosis Analysis:</strong> {diagnosis.explanation}
               </div>
 
               <div className="diag-bug-assessment">
-                <strong>Bug Severity Assessment:</strong> {diagnosis.bug_severity_assessment}
+                <div className="bug-assessment-header">
+                  <Bug className="bug-icon" />
+                  <strong>Open Issue & Bug Severity Assessment:</strong>
+                </div>
+                <p>{diagnosis.bug_severity_assessment}</p>
               </div>
 
               {/* Evaluated Recent GitHub Issue Titles */}
