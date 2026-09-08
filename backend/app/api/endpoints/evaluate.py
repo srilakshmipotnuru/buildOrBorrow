@@ -152,7 +152,13 @@ def evaluate_single_package_pipeline(
     github_url = resolution_dict.get("github_url")
     owner, repo = None, None
     raw_weekly_data = []
-    forecast_results = None
+    forecast_results = {
+        "projected_timeline": [],
+        "trend_direction": "UNAVAILABLE",
+        "health_score": 0.0,
+        "projected_total_events_90d": 0,
+        "maintenance_verdict_signal": "UNAVAILABLE"
+    }
     recent_issues = []
     readme_context = {}
 
@@ -238,47 +244,12 @@ def evaluate_single_package_pipeline(
 
                         # Backup Engine: Statistical series forecasting in Python
                         if not forecast_results:
-                            forecast_results = project_weekly_series(
-                                raw_weekly_data,
-                                forecast_weeks=settings.DEFAULT_FORECAST_WEEKS,
-                                stargazers_count=resolution_dict.get("stargazers_count", 0)
-                            )
+                            forecast_results = project_weekly_series(raw_weekly_data, forecast_weeks=settings.DEFAULT_FORECAST_WEEKS)
                             logger.info(f"   ✔ Statistical Fallback : Trend {forecast_results.get('trend_direction')} | Health Score: {forecast_results.get('health_score')}/100")
 
                     logger.info(f"   ✔ GH Warehouse Scan: Analyzed {len(raw_weekly_data)} weeks of activity for {owner}/{repo}")
             except Exception as e:
                 logger.warning(f"GH Warehouse query skipped or failed for {owner}/{repo}: {e}")
-
-    if not forecast_results:
-        stars = resolution_dict.get("stargazers_count", 0)
-        is_archived = readme_context.get("is_archived", False)
-        issues_count = len(recent_issues)
-        
-        if is_archived:
-            health_score = 0.0
-            trend = "DECLINING"
-            signal = "AT_RISK_STAGNANT"
-        else:
-            base = 40.0
-            if stars >= 5000: base += 40.0
-            elif stars >= 1000: base += 30.0
-            elif stars >= 100: base += 20.0
-            elif stars >= 10: base += 10.0
-            
-            if issues_count > 0: base += 10.0
-            
-            health_score = round(min(100.0, max(20.0, base)), 1)
-            trend = "STABLE"
-            signal = "HEALTHY_ACTIVE" if health_score >= 60 else "SLOW_MAINTENANCE"
-            
-        forecast_results = {
-            "projected_timeline": [],
-            "trend_direction": trend,
-            "health_score": health_score,
-            "projected_total_events_90d": 0,
-            "maintenance_verdict_signal": signal
-        }
-
 
     historical_summary = {
         "data_retrieved": bool(raw_weekly_data),
