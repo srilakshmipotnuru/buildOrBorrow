@@ -9,10 +9,14 @@ logger = logging.getLogger(__name__)
 app = FastAPI(
     title="BuildOrBorrow API",
     description="Backend API for BuildOrBorrow: AI-Powered Build vs Borrow Dependency Evaluator",
-    version="1.0.0"
+    version="1.0.0",
+    servers=[
+        {"url": "https://buildorborrow-backend-18092420262.us-central1.run.app", "description": "Production Cloud Run Backend"},
+        {"url": "http://127.0.0.1:8000", "description": "Local Development Server"}
+    ]
 )
 
-# Enable CORS for local React / Vite frontend development
+# Enable CORS for frontend development and public API access
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
@@ -32,5 +36,6 @@ def root():
     return {
         "status": "healthy",
         "message": "BuildOrBorrow API is running",
-        "swagger_docs": "http://127.0.0.1:8000/docs"
+        "swagger_docs": "/docs"
     }
+
