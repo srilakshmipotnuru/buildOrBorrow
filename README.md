@@ -535,3 +535,8 @@ Contributions are welcome! Please follow these guidelines:
 ## License
 
 This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
+
+## 👥 Team & Authors
+This project is an equal joint contribution co-developed by:
+- 🎓 **Srilakshmi Potnuru** ([@srilakshmipotnuru](https://github.com/srilakshmipotnuru))
+- 🎓 **Varshasree Tadiparthi** ([@varshasree](https://github.com/tvarshasree))
