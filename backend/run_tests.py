@@ -191,9 +191,8 @@ def run_benchmark():
             diagnosis = diag_obj.get("status")
             resolution = eval_detail.get("package_resolution", {})
             security = eval_detail.get("security_context", {})
-            forecast = eval_detail.get("forecast_analysis", {})
-
-            is_pass = (verdict == expected)
+            expected_options = [e.strip().upper() for e in expected.split("/") if e.strip()]
+            is_pass = (verdict.upper() in expected_options)
             status_icon = "[PASS]" if is_pass else "[MISMATCH]"
             if is_pass:
                 pkg_passed += 1

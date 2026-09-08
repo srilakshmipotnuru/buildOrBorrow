@@ -36,16 +36,16 @@ def generate_custom_build(
     }
     lang = SYSTEM_LANGUAGE_MAP.get(target_system, "python")
 
-    if not api_key:
+    from app.core.utils import get_genai_client, call_gemini_with_retry
+    client = get_genai_client()
+
+    if not client:
         raise HTTPException(
             status_code=503,
-            detail="AI Builder service is unavailable (GEMINI_API_KEY not configured)."
+            detail="AI Builder service is unavailable."
         )
 
     try:
-        from google import genai
-        client = genai.Client(api_key=api_key)
-
         prompt = (
             f"You are the Senior Software Engineer Builder Agent specialized in implementing zero-dependency utilities.\n"
             f"User Requirement: '{user_requirement}'\n"

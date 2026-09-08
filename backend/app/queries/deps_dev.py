@@ -1,5 +1,8 @@
 import re
+import json
 import logging
+import urllib.request
+import urllib.parse
 from typing import Optional, Dict, Any, List
 from google.cloud import bigquery
 from app.core.bigquery import get_bigquery_client, execute_safe_query
@@ -138,6 +141,105 @@ def query_package_version_history(
         return []
 
 
+def get_package_lookup_names(package_name: str, system: str) -> List[str]:
+    """Generates package search aliases for PEP 503 normalization (PyPI) and common variants."""
+    clean = package_name.strip().lower()
+    names = [clean]
+    target_sys = (system or "").strip().upper()
+    if target_sys == "PYPI":
+        names.append(clean.replace("_", "-"))
+        names.append(clean.replace("-", "_"))
+    return list(dict.fromkeys(names))
+
+
+def query_package_resolution_rest_fallback(
+    package_name: str,
+    system: str
+) -> Optional[Dict[str, Any]]:
+    """
+    Fallback: Queries the free deps.dev public REST API to resolve package metadata.
+    Triggered only when BigQuery returns None (package outside 30-day SnapshotAt window).
+    Handles packages abandoned years ago that are no longer crawled by deps.dev BigQuery snapshots.
+    Two-step: (1) fetch package listing to find default version, (2) fetch version detail for relatedProjects.
+    Cost: $0. Latency: ~300-500ms. Rate limit: none documented.
+    """
+    target_system = (system or "PYPI").strip().upper()
+    encoded_name = urllib.parse.quote(package_name, safe="")
+    headers = {"User-Agent": "BuildOrBorrow/1.0"}
+
+    try:
+        # Step 1: Get package listing to identify the default/latest version
+        pkg_url = f"https://api.deps.dev/v3/systems/{target_system}/packages/{encoded_name}"
+        req = urllib.request.Request(pkg_url, headers=headers)
+        with urllib.request.urlopen(req, timeout=8) as resp:
+            pkg_data = json.loads(resp.read().decode("utf-8"))
+
+        versions = pkg_data.get("versions", [])
+        if not versions:
+            logger.warning(f"   [deps.dev REST] No versions listed for '{package_name}' ({target_system})")
+            return None
+
+        # Prefer the explicitly flagged default version; fall back to last in list
+        default_ver = None
+        for v in versions:
+            if v.get("isDefault"):
+                default_ver = v["versionKey"]["version"]
+                break
+        if not default_ver:
+            default_ver = versions[-1]["versionKey"]["version"]
+
+        # Step 2: Fetch full version detail for licenses + relatedProjects (GitHub URL)
+        encoded_ver = urllib.parse.quote(default_ver, safe="")
+        ver_url = f"https://api.deps.dev/v3/systems/{target_system}/packages/{encoded_name}/versions/{encoded_ver}"
+        req2 = urllib.request.Request(ver_url, headers=headers)
+        with urllib.request.urlopen(req2, timeout=8) as resp2:
+            ver_data = json.loads(resp2.read().decode("utf-8"))
+
+        published_at = ver_data.get("publishedAt")
+        raw_licenses = ver_data.get("licenses", [])
+        licenses = [lic if isinstance(lic, str) else lic.get("license", "") for lic in raw_licenses]
+        licenses = [l for l in licenses if l]
+
+        # Extract GitHub source repo from relatedProjects (prefer SOURCE_REPO over ISSUE_TRACKER)
+        github_url = None
+        project_name = None
+        related = ver_data.get("relatedProjects", [])
+        for rel_type_pref in ("SOURCE_REPO", "ISSUE_TRACKER", ""):
+            for proj in related:
+                proj_id = proj.get("projectKey", {}).get("id", "")
+                rel_type = proj.get("relationType", "")
+                if proj_id.startswith("github.com/") and (rel_type == rel_type_pref or rel_type_pref == ""):
+                    project_name = proj_id.replace("github.com/", "", 1)
+                    github_url = f"https://github.com/{project_name}"
+                    break
+            if github_url:
+                break
+
+        logger.info(
+            f"   [deps.dev REST Fallback] Resolved '{package_name}' v{default_ver} "
+            f"({target_system}) | Repo: {github_url or 'None'} | Published: {(published_at or '')[:10]}"
+        )
+        return {
+            "name": package_name,
+            "system": target_system,
+            "version": default_ver,
+            "project_name": project_name,
+            "licenses": licenses,
+            "github_url": github_url,
+            "published_at": published_at,
+            "stargazers_count": 0,
+            "forks_count": 0,
+            "dependents_count": 0
+        }
+
+    except urllib.error.HTTPError as e:
+        logger.warning(f"   [deps.dev REST Fallback] HTTP {e.code} for '{package_name}' ({target_system}): {e.reason}")
+        return None
+    except Exception as e:
+        logger.warning(f"   [deps.dev REST Fallback] Failed for '{package_name}' ({target_system}): {type(e).__name__}: {e}")
+        return None
+
+
 def query_package_resolution(
     package_name: str,
     system: Optional[str] = None,
@@ -146,10 +248,12 @@ def query_package_resolution(
     """
     Query deps.dev BigQuery dataset across ALL ecosystems (PYPI, NPM, CARGO, GO, MAVEN).
     Uses 2-CTE partition pruning with centralized settings for byte limit guardrails.
+    Supports PEP 503 PyPI hyphen/underscore normalization and package-level project fallback.
     """
     package_name = package_name.strip().lower()
     target_system = (system or "PYPI").strip().upper()
     bq_client = client or get_bigquery_client()
+    candidate_names = get_package_lookup_names(package_name, target_system)
     
     sql = f"""
     WITH target_package AS (
@@ -161,28 +265,34 @@ def query_package_resolution(
             SnapshotAt
         FROM `bigquery-public-data.deps_dev_v1.PackageVersions`
         WHERE System = @system 
-          AND Name = @package_name
+          AND Name IN UNNEST(@package_names)
           AND VersionInfo.IsRelease = true
           AND SnapshotAt >= TIMESTAMP_SUB(CURRENT_TIMESTAMP(), INTERVAL {settings.DEPS_DEV_PARTITION_DAYS} DAY)
-        ORDER BY VersionInfo.Ordinal DESC
+        ORDER BY 
+          -- 1. Exact string match preferred
+          CASE WHEN LOWER(Name) = LOWER(@primary_name) THEN 0 ELSE 1 END ASC,
+          -- 2. Latest ordinal release
+          VersionInfo.Ordinal DESC
         LIMIT 1
     ),
     target_project AS (
         SELECT 
-            System, 
-            Name, 
-            ProjectName
-        FROM `bigquery-public-data.deps_dev_v1.PackageVersionToProject`
-        WHERE System = @system 
-          AND Name = @package_name
-          AND SnapshotAt >= TIMESTAMP_SUB(CURRENT_TIMESTAMP(), INTERVAL {settings.DEPS_DEV_PARTITION_DAYS} DAY)
+            p2p.System, 
+            p2p.Name, 
+            p2p.ProjectName
+        FROM `bigquery-public-data.deps_dev_v1.PackageVersionToProject` p2p
+        WHERE p2p.System = @system
+          AND p2p.Name IN UNNEST(@package_names)
+          AND p2p.SnapshotAt >= TIMESTAMP_SUB(CURRENT_TIMESTAMP(), INTERVAL {settings.DEPS_DEV_PARTITION_DAYS} DAY)
         ORDER BY 
-          -- 1. Prefer official GITHUB project type
-          CASE WHEN UPPER(ProjectType) = 'GITHUB' THEN 0 ELSE 1 END ASC,
-          -- 2. Avoid auxiliary build/release repos (e.g. 'numpy/numpy-release')
-          CASE WHEN LOWER(ProjectName) LIKE '%-release' THEN 1 ELSE 0 END ASC,
-          -- 3. Latest snapshot recency
-          SnapshotAt DESC
+          -- 1. Exact version match preferred
+          CASE WHEN p2p.Version = (SELECT Version FROM target_package) THEN 0 ELSE 1 END ASC,
+          -- 2. Prefer official GITHUB project type
+          CASE WHEN UPPER(p2p.ProjectType) = 'GITHUB' THEN 0 ELSE 1 END ASC,
+          -- 3. Avoid auxiliary build/release repos (e.g. 'numpy/numpy-release')
+          CASE WHEN LOWER(p2p.ProjectName) LIKE '%-release' THEN 1 ELSE 0 END ASC,
+          -- 4. Latest snapshot recency
+          p2p.SnapshotAt DESC
         LIMIT 1
     )
     SELECT 
@@ -199,7 +309,8 @@ def query_package_resolution(
     """
     job_config = bigquery.QueryJobConfig(
         query_parameters=[
-            bigquery.ScalarQueryParameter("package_name", "STRING", package_name),
+            bigquery.ArrayQueryParameter("package_names", "STRING", candidate_names),
+            bigquery.ScalarQueryParameter("primary_name", "STRING", package_name),
             bigquery.ScalarQueryParameter("system", "STRING", target_system)
         ]
     )
@@ -224,11 +335,12 @@ def query_package_resolution(
                 "forks_count": 0,
                 "dependents_count": 0
             }
-        logger.warning(f"   [deps.dev] No release resolution record found for '{package_name}' in {target_system}")
-        return None
+        logger.info(f"   [deps.dev] BigQuery miss for '{package_name}' ({target_system}) - package outside 30-day snapshot window. Trying REST API fallback...")
+        return query_package_resolution_rest_fallback(package_name, target_system)
     except Exception as e:
         logger.error(f"   [deps.dev] Resolution query failed for '{package_name}': {e}", exc_info=True)
-        return None
+        logger.info(f"   [deps.dev] Trying REST API fallback after BigQuery exception for '{package_name}'...")
+        return query_package_resolution_rest_fallback(package_name, target_system)
 
 
 def query_security_and_dependencies(
@@ -262,6 +374,7 @@ def query_security_and_dependencies(
     output["active_cves_on_current_version"] = 0
     output["patched_historical_cves"] = 0
     output["is_current_version_vulnerable"] = False
+    output["recommended_pinned_version"] = None
 
     # Resolve version if missing to guarantee exact version scoping
     if not version:

@@ -87,23 +87,19 @@ def generate_verdict(
     Integrates the Calculative Confidence Engine (Formulaic Base + LLM Delta + Hard Caps).
     Raises HTTP 503 if Gemini AI service is unconfigured or fails.
     """
-    api_key = settings.GEMINI_API_KEY
-    if not api_key:
+    from app.core.utils import get_genai_client, call_gemini_with_retry
+    client = get_genai_client()
+
+    if not client:
         raise HTTPException(
             status_code=503,
-            detail="Gemini API key is not configured. AI verdict synthesis service is unavailable."
+            detail="AI verdict synthesis service is unavailable."
         )
 
     diag_status = diagnosis_output.get("status", "MAINTAINED_ACTIVE")
     pkg_name = package_resolution.get("name") or package_resolution.get("package_name") or package_resolution.get("project_name") or "target-package"
 
     try:
-        from google import genai
-        from google.genai import types
-        from app.core.utils import call_gemini_with_retry
-
-        client = genai.Client(api_key=api_key)
-
         github_url = package_resolution.get("github_url", "N/A")
         project_name = package_resolution.get("project_name", pkg_name)
         stargazers = package_resolution.get("stargazers_count", 0)

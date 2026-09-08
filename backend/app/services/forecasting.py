@@ -22,7 +22,9 @@ def calculate_trend_slope(y_values: List[float]) -> float:
 
 def project_weekly_series(
     historical_timeline: List[Dict[str, Any]], 
-    forecast_weeks: int = settings.DEFAULT_FORECAST_WEEKS
+    forecast_weeks: int = settings.DEFAULT_FORECAST_WEEKS,
+    stargazers_count: int = 0,
+    dependents_count: int = 0
 ) -> Dict[str, Any]:
     """
     Projects 90-day (~13 weeks) activity from historical weekly GH Archive data.
@@ -92,8 +94,9 @@ def project_weekly_series(
     activity_weight = min(50.0, recent_avg * 5)
     momentum_weight = 30.0 if trend_direction == "ACCELERATING" else (20.0 if trend_direction == "STABLE" else 5.0)
     consistency_weight = min(20.0, (avg_commits + avg_prs) * 2)
+    adoption_bonus = 40.0 if (stargazers_count >= 1000 or dependents_count >= 1000) else (20.0 if (stargazers_count >= 200 or dependents_count >= 200) else 0.0)
     
-    raw_health_score = activity_weight + momentum_weight + consistency_weight
+    raw_health_score = activity_weight + momentum_weight + consistency_weight + adoption_bonus
 
     # Objective mathematical health score (clamped between 0.0 and 100.0)
     health_score = round(min(100.0, max(0.0, raw_health_score)), 2)

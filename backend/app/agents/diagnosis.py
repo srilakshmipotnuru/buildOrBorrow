@@ -43,11 +43,13 @@ def diagnose_package(
     stargazers = resolution_info.get("stargazers_count", 0)
     dependents = resolution_info.get("dependents_count", 0)
 
-    api_key = settings.GEMINI_API_KEY
-    if not api_key:
+    from app.core.utils import get_genai_client, call_gemini_with_retry
+    client = get_genai_client()
+
+    if not client:
         raise HTTPException(
             status_code=503,
-            detail="AI Diagnosis Agent is unavailable (GEMINI_API_KEY not configured)."
+            detail="AI Diagnosis Agent is unavailable."
         )
 
     is_archived = readme_info.get("is_archived", False)
@@ -66,16 +68,24 @@ def diagnose_package(
 
     archived_str = "- Official GitHub Platform Status: ARCHIVED (read-only mode, permanent maintenance cessation)\n" if is_archived else ""
 
-    data_status_str = (
-        f"- Historical Pushes (104 wks): {historical_summary.get('total_pushes')}\n"
-        f"- Historical PRs (104 wks): {historical_summary.get('total_prs')}\n"
-        f"- Historical Stars (104 wks): {historical_summary.get('total_stars')}\n"
-    ) if historical_summary.get("data_retrieved", True) else "- Historical Activity: Data Unavailable / Skipped (DO NOT infer 0 commits or project abandonment)\n"
+    if historical_summary.get("data_retrieved", False):
+        total_p = historical_summary.get("total_pushes", 0)
+        total_pr = historical_summary.get("total_prs", 0)
+        if total_p == 0 and total_pr == 0:
+            data_status_str = (
+                f"- Historical Pushes (104 wks): 0\n"
+                f"- Historical PRs (104 wks): 0\n"
+            )
+        else:
+            data_status_str = (
+                f"- Historical Pushes (104 wks): {total_p}\n"
+                f"- Historical PRs (104 wks): {total_pr}\n"
+                f"- Historical Stars (104 wks): {historical_summary.get('total_stars', 0)}\n"
+            )
+    else:
+        data_status_str = "- Historical Activity: Data Unavailable / Unlinked Repository (Classify as UNCERTAIN_UNVERIFIED)\n"
 
     try:
-        from google import genai
-        client = genai.Client(api_key=api_key)
-
         prompt = (
             f"You are the Senior Software Package Health Diagnosis Agent specialized in open-source repository maintenance analysis.\n"
             f"ECOSYSTEM & REPOSITORY GROUNDING:\n"
@@ -96,16 +106,16 @@ def diagnose_package(
             f"DIAGNOSIS INSTRUCTIONS:\n"
             f"1. CRITICAL DISTINCTION - MATURE BEDROCK vs ABANDONED:\n"
             f"   - Evaluate ONLY the specific target repository '{project_repo_name}' on system '{system_name}'. DO NOT conflate packages across different ecosystems.\n"
-            f"   - A package can ONLY be classified as MATURE_STABLE (Bedrock) if it has empirical proof of high adoption (e.g. high dependents count, high star count, or verified foundational usage in system '{system_name}') AND zero critical CVEs/crash bugs.\n"
-            f"   - If target repository adoption metrics (stars/dependents) AND commit activity are low or zero, DO NOT excuse zero activity as 'API stability'. Classify as ABANDONED_STRUGGLING or UNCERTAIN_UNVERIFIED.\n"
+            f"   - High-adoption, foundational bedrock libraries (e.g. high stars or high dependents) with 0 active CVEs MUST be classified as MATURE_STABLE even if recent commit churn is low/zero.\n"
+            f"   - Obscure/niche packages with low adoption (low stars & low dependents) AND 0 commit activity across 104 weeks, OR officially ARCHIVED repositories, MUST be classified as ABANDONED_STRUGGLING and set is_abandoned=true.\n"
             f"2. SUPERSEDED / RENAMED / DEPRECATED PACKAGES:\n"
             f"   - If the package is officially deprecated, renamed, archived on GitHub, or maintainers declare it unmaintained in the README, classify it as ABANDONED_STRUGGLING and set is_abandoned=true.\n"
             f"   - Do NOT mark an otherwise active library as abandoned if it merely mentions deprecating an old sub-feature in release notes.\n"
             f"3. Classify into one of 5 statuses:\n"
             f"   - MATURE_STABLE: API-complete bedrock package with verified high adoption, low/steady churn, 0 critical bugs/CVEs.\n"
             f"   - MAINTAINED_ACTIVE: Active commits, regular releases, healthy issue resolution.\n"
-            f"   - ABANDONED_STRUGGLING: Unmaintained/deprecated package, or obscure low-usage package with stagnant activity.\n"
-            f"   - UNCERTAIN_UNVERIFIED: Unverified telemetry or missing repository metadata.\n"
+            f"   - ABANDONED_STRUGGLING: Confirmed unmaintained/deprecated package, or obscure low-usage package with zero activity.\n"
+            f"   - UNCERTAIN_UNVERIFIED: Unverified telemetry or missing repository metadata (Data Unavailable).\n"
             f"   - VULNERABLE: Severe unresolved security vulnerabilities (CVEs) or active security advisories.\n"
             f"4. Set is_abandoned to true ONLY if status is ABANDONED_STRUGGLING or VULNERABLE.\n"
             f"5. Assign a confidence_score (0.0 to 1.0) and detailed explanation."

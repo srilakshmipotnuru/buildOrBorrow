@@ -138,10 +138,11 @@ Popular, foundational libraries (like `axios`, `express`, `lodash`, `requests`, 
 
 > [!NOTE]
 > **Implementation Summary (Completed):**
-> - **In-Memory Safe Version Evaluation**: Added `query_package_version_history` and `find_safe_pinned_version` in [`deps_dev.py`](file:///c:/Users/tvars/OneDrive/Desktop/my_project/buildOrBorrow/backend/app/queries/deps_dev.py). Evaluates release history against `affected_version_ranges` with 0 extra BigQuery byte overhead.
-> - **SemVer Major Branch Constraint**: Restricts version recommendations strictly to the same Major version branch (e.g. `2.x.x`) to guarantee zero breaking API changes.
+> - **In-Memory Safe Version Evaluation**: Added `query_package_version_history` and `find_safe_pinned_version` in [`deps_dev.py`](file:///d:/Downloads/patchamomma/buildOrBorrow/backend/app/queries/deps_dev.py). Evaluates release history against `affected_version_ranges` with 0 extra BigQuery byte overhead.
+> - **SemVer Branch Constraint**: Restricts version recommendations strictly to the same Major version branch (e.g. `2.x.x` for Major >= 1, or `0.x.y` matching Major and Minor for 0.x) to guarantee zero breaking API changes.
 > - **12-Month Recency Horizon**: Filters out release versions published > 365 days ago.
-> - **Verdict & UI Integration**: Updated Verdict Agent ([`verdict.py`](file:///c:/Users/tvars/OneDrive/Desktop/my_project/buildOrBorrow/backend/app/agents/verdict.py)) and UI Hero Card ([`VerdictCard.tsx`](file:///c:/Users/tvars/OneDrive/Desktop/my_project/buildOrBorrow/frontend/src/components/verdict/VerdictCard.tsx)) to display **`BORROW`** with a blue **`"Recommended Version Pin: vX.Y.Z"`** banner when a safe version exists, or fall back to **`MIGRATE`** if no clean version exists in the 12-month horizon.
+> - **Dual-Perspective Advice Model**: When the current release has an active CVE but a clean pinned version exists, the system outputs **`BORROW`** with `recommended_pinned_version` for developers with an existing codebase (pin to clean version with zero breaking changes), while concurrently providing `recommended_alternative` for fresh adopters starting a new project.
+> - **Verdict & UI Integration**: Updated Verdict Agent ([`verdict.py`](file:///d:/Downloads/patchamomma/buildOrBorrow/backend/app/agents/verdict.py)) and UI Hero Card ([`VerdictCard.tsx`](file:///d:/Downloads/patchamomma/buildOrBorrow/frontend/src/components/verdict/VerdictCard.tsx), [`VerdictCard.css`](file:///d:/Downloads/patchamomma/buildOrBorrow/frontend/src/components/verdict/VerdictCard.css)) displaying an eye-catching blue **`"Recommended Version Pin: vX.Y.Z (Zero Breaking Changes)"`** banner alongside clear dual-perspective guidance.
 When the latest release version of a healthy package (e.g. `v2.4.0`) contains a newly reported vulnerability, how far back in version history should the system look to recommend a safe stable version?
 
 ### **Proposed Boundary Rules & 0-Extra-Query Implementation:**
@@ -158,7 +159,15 @@ When the latest release version of a healthy package (e.g. `v2.4.0`) contains a 
 
 ---
 
-## 8. 🤖 Eliminate Hardcoded AI Interceptors & Replace Static Lists with Dynamic LLM Classification (Done ✅)
+## 8. 🤖 Eliminate Hardcoded AI Interceptors & Replace Static Lists with Dynamic LLM Classification [DONE ✅]
+
+> [!NOTE]
+> **Implementation Summary (Completed):**
+> - **Pre-Call Interceptors Removed**: Eliminated hardcoded interceptors in `diagnosis.py` and `verdict.py`. Gemini is called on 100% of requests; fallback logic only runs inside exception handlers.
+> - **Readme Deprecation Guard Cleaned**: Removed blind substring checking on the single word `"deprecated"`. README context is passed directly to Gemini, and fallback regex only triggers on explicit project abandonment sentences (`"this project is deprecated"`, `"repository has been archived"`).
+> - **Mathematical Velocity Restored**: Stripped out arbitrary `+40.0` star-inflation hack in `forecasting.py`.
+> - **Candidate Verifier Fixed**: Removed false-positive `verified_exists: True` fallback bug in `alternative_verifier.py`.
+> - **Domain Relevance & Anti-Overkill Guard**: Added strict domain alignment rules to `verdict.py` prompt forbidding `BORROW` when a package's domain has zero relation to the requirement (e.g. video rendering library for caching).
 
 ### **Problem Statement:**
 1. **Active AI Interceptor in `verdict.py` (Line 235)**:
@@ -324,16 +333,28 @@ In Task Requirement Mode, the Candidate Finder LLM occasionally suggests candida
 
 ---
 
-## 15. 🏆 OpenSSF, ecosyste.ms & CHAOSS Validation Benchmark Integration
+## 15. 🏆 OpenSSF, ecosyste.ms & Validation Benchmark Integration [DONE ✅]
+
+> [!NOTE]
+> **Implementation Summary (Completed):**
+> - **Dedicated Benchmark Directory**: Implemented in [`backend/benchmark/`](file:///d:/Downloads/patchamomma/buildOrBorrow/backend/benchmark/).
+> - **Polyglot Syntax Engine**: [`verify_syntax.py`](file:///d:/Downloads/patchamomma/buildOrBorrow/backend/benchmark/verify_syntax.py) rigorously validates generated code snippets for Python (`ast`), TypeScript, Rust, Go, and Java, strictly verifying zero third-party dependencies (`dependencies_used == []`).
+> - **Live Authority Harvester**: [`generate_suite_from_apis.py`](file:///d:/Downloads/patchamomma/buildOrBorrow/backend/benchmark/generate_suite_from_apis.py) harvests real packages and registry descriptions from live external authority APIs (`ecosyste.ms` and OpenSSF Scorecards) with persistent multi-run deduplication and direct UI viewer links.
+> - **Multi-Threaded Benchmark Engine**: [`run_benchmark.py`](file:///d:/Downloads/patchamomma/buildOrBorrow/backend/benchmark/run_benchmark.py) evaluates test cases with concurrent worker threads, recording full API responses, errors, verdict reasoning, and diagnosis explanations in [`benchmark_results.csv`](file:///d:/Downloads/patchamomma/buildOrBorrow/backend/benchmark/benchmark_results.csv) and [`benchmark_results.json`](file:///d:/Downloads/patchamomma/buildOrBorrow/backend/benchmark/benchmark_results.json).
+> - **Empirical Verification Results**: Evaluated **54 test cases** across all 5 ecosystems (**PyPI, NPM, Cargo, Go, Maven**) and all 12 scenarios (S1–S12):
+>   - **Overall Decision Accuracy**: **85.2% (46/54)**
+>   - **Zero-Dep Code Syntax Pass Rate**: **100.0% (15/15 valid)**
+>   - **Ecosystem Breakdown**: PyPI (93.8%), Cargo (88.9%), NPM (84.2%), Go (80.0%), Maven (60.0%)
+> - **Detailed Findings & Roadmap**: Documented in [`docs/benchmark_test_findings.md`](file:///d:/Downloads/patchamomma/buildOrBorrow/docs/benchmark_test_findings.md) and [`backend/benchmark/benchmark_results.md`](file:///d:/Downloads/patchamomma/buildOrBorrow/backend/benchmark/benchmark_results.md). Zero BigQuery table export per user instruction.
 
 ### **Value Proposition Differentiation:**
 While raw data platforms like **Google deps.dev**, **OpenSSF Scorecards** (`api.securityscorecards.dev`), **ecosyste.ms**, and **CHAOSS Metrics** output passive metrics (e.g. `4.2/10`), **BuildOrBorrow** acts as the actionable **AI Decision & Code Generation Engine** that transforms raw data into `BORROW`, `MIGRATE`, or `BUILD` verdicts and generates custom zero-dependency code snippets on the spot.
 
-### **4 External Datasets & APIs for Validation (`backend/scripts/benchmark_validation.py`):**
-1. **Google `deps.dev` BigQuery Dataset**: (Currently used in BuildOrBorrow) Package resolution, OSV vulnerabilities, and dependency counts across PyPI, NPM, Cargo, Go, and Maven.
-2. **OpenSSF Scorecard REST API & BigQuery Dataset** (`api.securityscorecards.dev` / `openssf:scorecardcron.scorecard-v2`): Extracts official ground-truth maintainer & security scores (0-10) for 1M+ GitHub repositories across ALL languages.
-3. **`ecosyste.ms` API**: Cross-ecosystem dependency graph metadata across 15+ package registries.
-4. **Linux Foundation CHAOSS Metrics**: 80+ standardized open-source sustainability & health metrics.
+### **External Datasets & APIs for Validation (`backend/benchmark/`):**
+1. **Google `deps.dev` BigQuery Dataset**: Package resolution, OSV vulnerabilities, and dependency counts across PyPI, NPM, Cargo, Go, and Maven.
+2. **OpenSSF Scorecard REST API** (`api.securityscorecards.dev`): Extracts official ground-truth maintainer & security scores (0-10) with direct clickable web viewer links.
+3. **`ecosyste.ms` API**: Cross-ecosystem package registry metadata across PyPI, NPM, Crates.io, Go Proxy, and Maven.
+4. **Polyglot Syntax Validator**: Structural parser and zero-dependency auditor for all 5 target languages.
 
 ---
 

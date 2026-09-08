@@ -35,6 +35,17 @@ class TaskComplexityClassification(BaseModel):
     reasoning: str = Field(description="1-sentence reason for classification")
 
 
+def get_genai_client():
+    """
+    Centralized helper to initialize Google GenAI Client using standard Gemini API Key.
+    """
+    from google import genai
+    api_key = settings.GEMINI_API_KEY
+    if not api_key:
+        return None
+    return genai.Client(api_key=api_key)
+
+
 def is_micro_utility_requirement(task_description: str) -> bool:
     """
     AI-Powered Early Micro-Utility Classifier:
@@ -45,14 +56,11 @@ def is_micro_utility_requirement(task_description: str) -> bool:
     if not task_description or not task_description.strip():
         return False
 
-    api_key = settings.GEMINI_API_KEY
-    if not api_key:
+    client = get_genai_client()
+    if not client:
         return False
 
     try:
-        from google import genai
-        client = genai.Client(api_key=api_key)
-
         prompt = (
             f"You are an expert software architect evaluating task scope.\n"
             f"Task Requirement: '{task_description}'\n\n"
@@ -88,8 +96,8 @@ def call_gemini_with_retry(
 ) -> Any:
     """
     Executes a structured Gemini API call with exponential backoff retries and automatic model fallback.
-    If primary model (e.g. gemini-2.5-flash) throws 503 UNAVAILABLE or 429 RESOURCE_EXHAUSTED,
-    it automatically falls back to active alternative models (gemini-3.5-flash-lite, gemini-3.5-flash).
+    If primary model throws 503 UNAVAILABLE or 429 RESOURCE_EXHAUSTED,
+    it automatically falls back to active alternative models.
     """
     from google.genai import types
 
@@ -97,7 +105,7 @@ def call_gemini_with_retry(
     backup_1 = getattr(settings, "FALLBACK_GEMINI_MODEL_1", "gemini-3.6-flash")
     backup_2 = getattr(settings, "FALLBACK_GEMINI_MODEL_2", "gemini-3.1-flash-lite")
 
-    # Triple-tier Cascade: Primary (3.5-flash-lite) -> Backup 1 (3.6-flash) -> Backup 2 (3.1-flash-lite)
+    # Triple-tier Cascade
     models_to_try = [primary_model, backup_1, backup_2][:max_retries]
 
     last_exception = None

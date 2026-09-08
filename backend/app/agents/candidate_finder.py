@@ -29,18 +29,16 @@ def find_candidate_packages(task_description: str, system: str = "PYPI") -> Cand
         raise HTTPException(status_code=400, detail="Task description cannot be empty.")
 
     target_system = (system or "PYPI").upper()
-    api_key = settings.GEMINI_API_KEY
+    from app.core.utils import get_genai_client, call_gemini_with_retry
+    client = get_genai_client()
 
-    if not api_key:
+    if not client:
         raise HTTPException(
             status_code=503,
-            detail="AI Candidate Finder service is unavailable (GEMINI_API_KEY not configured). Please evaluate by exact package name."
+            detail="AI Candidate Finder service is unavailable. Please evaluate by exact package name."
         )
 
     try:
-        from google import genai
-        client = genai.Client(api_key=api_key)
-
         prompt = (
             f"You are an expert software package ecosystem architect and exact registry name resolver.\n"
             f"Task Requirement: '{task_description}'\n"
